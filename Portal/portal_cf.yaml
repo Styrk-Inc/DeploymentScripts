@@ -1,0 +1,645 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Provision LLM_Guard Environment in Private Subnet and access it using ALB.
+
+
+Parameters:
+  SSHKeyname:
+    Description: SSH key to Access instance
+    Type: String
+  InstanceType:
+    Description: Provide instance type
+    Type: String
+    Default: t2.large
+
+Resources:
+
+  # Create VPC
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '10.0.0.0/16'
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_VPC'
+
+  # Create Public Subnet 1
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: '10.0.0.0/24'
+      AvailabilityZone: 'us-east-1a'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Public_Subnet_1'
+
+  # Create Public Subnet 2
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: '10.0.2.0/24'
+      AvailabilityZone: 'us-east-1b'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Public_Subnet_2'
+
+  # Create Private Subnet 1
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: '10.0.1.0/24'
+      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Private_Subnet_1'
+
+  # Create Private Subnet 2
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: '10.0.3.0/24'
+      AvailabilityZone: 'us-east-1b'
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Private_Subnet_2'
+
+  # Create Internet Gateway for Public Subnets
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_IGW'
+
+  # Attach Internet Gateway to VPC
+  AttachIGW:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Create NAT Gateway Elastic IP (EIP)
+  NatGatewayEIP:
+    Type: 'AWS::EC2::EIP'
+    DependsOn: AttachIGW
+    Properties: 
+      Domain: 'vpc'
+
+  # Create NAT Gateway
+  NatGateway:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_NAT_Gateway'
+
+  # Create Public Route Table
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Public_Route_Table'
+
+  # Create Route for Public Route Table (Internet Access)
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+
+  # Associate Public Route Table with Public Subnets
+  PublicSubnetRouteTableAssociation1:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Create Private Route Table
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Private_Route_Table'
+
+  # Create Route for Private Route Table (NAT Gateway Access)
+  PrivateRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGateway
+
+  # Associate Private Route Table with Private Subnets
+  PrivateSubnetRouteTableAssociation1:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Create IAM Role for EC2 Instance
+  LLMGuardRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'ec2.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'LLM_GuardEC2Policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeRegions'
+                  - 'ec2:DescribeVolumes'
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:AttachVolume'
+                  - 'ec2:DetachVolume'
+                  - 'ec2:DescribeVolumeStatus'
+                  - 'ec2:ModifyInstanceAttribute'
+                Resource: '*'
+              - Effect: 'Allow'
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:PutImage'  # Allow pushing images to ECR
+                  - 'ecr:InitiateLayerUpload'  # Allow starting an upload of an image layer
+                  - 'ecr:UploadLayerPart'  # Allow uploading parts of an image layer
+                  - 'ecr:CompleteLayerUpload'  # Allow completing the upload of an image layer
+                Resource: '*'
+
+  # Create IAM Instance Profile to Attach the Role
+  LLMGuardInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - Ref: LLMGuardRole
+
+  # Create Security Group
+  LLMGuardSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Allow inbound HTTP and HTTPS traffic'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '0.0.0.0/0'  # Allow SSH from any IP
+        - IpProtocol: 'tcp'
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'  # Allow HTTP from any IP
+        - IpProtocol: 'tcp'
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: '0.0.0.0/0'  # Allow HTTPS from any IP
+        - IpProtocol: 'tcp'
+          FromPort: '8000'
+          ToPort: '8000'
+          CidrIp: '0.0.0.0/0'  # Allow Swagger from any IP
+        - IpProtocol: 'tcp'
+          FromPort: '8080'
+          ToPort: '8080'
+          CidrIp: '0.0.0.0/0'  # Allow UI from any IP
+      Tags:
+        - Key: Name
+          Value: 'LLMGuard-SecurityGroup'
+
+  # Create EC2 Instance
+  Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties: 
+      ImageId: ami-005fc0f236362e99f
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref SSHKeyname
+      SubnetId: !Ref PrivateSubnet1  # Reference to the private subnet
+      SecurityGroupIds: 
+        - !Ref LLMGuardSecurityGroup  # Attach security group to the EC2 instance
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 60 # Size in GB
+            VolumeType: gp2
+      IamInstanceProfile: !Ref LLMGuardInstanceProfile
+      Monitoring: true  # Enables detailed monitoring
+      Tags:
+        - Key: Name
+          Value: LLM_Guard-CF-Private-instance
+        - Key: Environment
+          Value: Production
+        - Key: Owner
+          Value: Styrk
+
+  # Installing packages and start containers
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Define ECR Variables
+          Aws_Account_ID=637423168201
+          Region=us-east-1
+          LLM_Guard_ECR_Repo=llm_guard_repo
+          LLM_Guard_UI_Image_Tag=ui
+          LLM_Guard_Backend_Image_Tag=backend
+          LLM_Guard_Backend_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_Backend_Image_Tag
+          LLM_Guard_UI_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_UI_Image_Tag
+
+          # Install required packages
+          sudo apt-get update -y
+          sudo apt-get install -y awscli docker.io docker-compose
+
+          # Add docker to ubuntu user group
+          sudo usermod -aG docker ubuntu && newgrp docker
+
+          # Install Nginx server
+          sudo apt install nginx -y
+          # Edit files
+          sudo mv /etc/nginx/sites-available/default /etc/nginx/sites-available/default_bkp
+          # Define the file path for the Nginx configuration
+          NGINX_CONFIG_FILE="/etc/nginx/sites-available/default"
+
+          # Create the Nginx configuration with a reverse proxy setup
+          cat <<EOL > $NGINX_CONFIG_FILE
+          server {
+              listen 80;
+
+              location / {
+                  proxy_pass http://localhost:8080;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \$host;
+                  proxy_cache_bypass \$http_upgrade;
+
+                  # Increase timeouts for longer requests
+                  proxy_connect_timeout 600s;
+                  proxy_send_timeout 600s;
+                  proxy_read_timeout 600s;
+              }
+
+              location /api/ {
+                  proxy_pass http://localhost:8000/api/;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \$host;
+                  proxy_cache_bypass \$http_upgrade;
+
+                  # Increase timeouts for longer requests
+                  proxy_connect_timeout 600s;
+                  proxy_send_timeout 600s;
+                  proxy_read_timeout 600s;
+              }
+
+              location /docs {
+                  proxy_pass http://localhost:8000/docs;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \$host;
+                  proxy_cache_bypass \$http_upgrade;
+
+                  # Increase timeouts for longer requests
+                  proxy_connect_timeout 600s;
+                  proxy_send_timeout 600s;
+                  proxy_read_timeout 600s;
+              }
+
+              location /openapi.json {
+                  proxy_pass http://localhost:8000/openapi.json;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host \$host;
+                  proxy_cache_bypass \$http_upgrade;
+
+                  # Increase timeouts for longer requests
+                  proxy_connect_timeout 600s;
+                  proxy_send_timeout 600s;
+                  proxy_read_timeout 600s;
+              }
+          }
+          EOL
+
+          # Ensure correct permissions
+          chmod 644 $NGINX_CONFIG_FILE
+
+          # Reload Nginx to apply the changes
+          systemctl reload nginx
+
+          # Enable and start Docker service
+          sudo systemctl enable docker
+          sudo systemctl start docker
+
+          # Attach EBS volume
+          # INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+          # aws ec2 attach-volume --volume-id vol-001420c3f2987c560 --instance-id $INSTANCE_ID --region us-east-1 --device /dev/sdh
+
+          # Wait for the volume to be fully attached
+          # sleep 30
+
+          # # Format the disk if needed
+          # sudo mkfs.ext4 /dev/xvdh
+
+          # # Mount EBS volume for MongoDB persist data
+          # sudo mkdir -p /mnt/mongodb_data
+          # sudo mount /dev/xvdh /mnt/mongodb_data/
+
+          # Authenticate Docker with ECR
+          aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $Aws_Account_ID.dkr.ecr.$Region.amazonaws.com
+
+          # Pull the LLM_Guard_Backend image
+          docker pull $LLM_Guard_Backend_Image_URI
+
+          # Pull the LLM_Guard_UI image
+          docker pull $LLM_Guard_UI_Image_URI
+
+          # Create docker-compose.yml file
+          cd /home/ubuntu/
+          cat <<EOF > docker-compose.yml
+          version: '3.8'  # It's good practice to specify the version of the Docker Compose file format
+
+          services:
+            private-gpt-UI:
+              container_name: prompt_guard_ui
+              image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/llm_guard_repo:ui
+              #build:
+              #  context: .
+              #  dockerfile: prompt_guard_ui/Dockerfile
+              ports:
+                - "8080:80"
+              restart: unless-stopped
+              deploy:
+                replicas: 1
+                restart_policy:
+                  condition: on-failure
+
+            PrivateGPT:  # Service names are typically lowercase, but it's not a strict requirement
+              #build:
+              #  context: .
+              #  dockerfile: prompt_guard_backend/Dockerfile  # Relative paths don't need './' prefix, but it's okay to include it
+              container_name: private_gpt  # Container names are typically lowercase
+              image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/llm_guard_repo:backend
+              # Uncomment the command if you need to override the container's default command
+              # command: /start
+              environment:
+                SECRET_BASE_NAME: "llm_security_keys"
+                SERVICE_NAME: "private_gpt_stack_PrivateGPT"
+                STATE_FILE: "/app/state_file.json"
+                graylog_host: "graylog"
+                GRAYLOG_PORT: "12201"
+                COGNITO_CLIENT_ID: "7ng749miu7sfg42q5c320785jh"
+                COGNITO_USER_POOL_ID: "us-east-1_pp9pdFP3g"
+                COGNITO_REGION: "us-east-1"
+                ALGORITHM : "HS256"
+                EMAIL_USER : "noreply@infrablok.com"
+                mongodb_ip: "mongodb"
+                mongo_user: "Admin"
+                mongo_password: "Admin@123"
+                SECRET_REGION_NAME: "us-east-1"
+
+              volumes:
+                # - /home/pratish/git_repo/private_gpt/:/app
+                - /var/run/docker.sock:/var/run/docker.sock
+                - /usr/bin/docker:/usr/bin/docker
+                #- .:/app  # Maps the current directory to /app in the container
+              ports:
+                - "8000:8000"  # Quoting the port mapping is a good practice to avoid YAML interpreting numbers in a different base
+              depends_on:
+                # - mongodbsudo systemctl stop mongod
+                - graylog
+
+              # Uncomment and adjust the env_file if you want to use an environment file
+              # env_file:
+              #   - .env/.dev-sample
+
+            mongodb:
+              container_name: mongodb
+              image: mongo:latest
+              volumes:
+                - mongodb_data:/data/db
+              ports:
+                - "27017:27017"
+              environment:
+                MONGO_INITDB_ROOT_USERNAME: Admin
+                MONGO_INITDB_ROOT_PASSWORD: Admin@123
+            # MongoDB for Graylog
+            
+            # mongo for graylog
+            mongo:
+              container_name: mongo_graylog
+              image: mongo:5.0.7
+              volumes:
+                - mongo_data:/data/db
+
+            # Elasticsearch for Graylog
+            elasticsearch:
+              container_name: elasticsearch
+              image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2
+              environment:
+                - http.host=0.0.0.0
+                - transport.host=localhost
+                - network.host=0.0.0.0
+                - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+              ulimits:
+                memlock:
+                  soft: -1
+                  hard: -1
+              volumes:
+                - es_data:/usr/share/elasticsearch/data
+
+            # Graylog
+            graylog:
+              container_name: graylog
+              image: graylog/graylog:5.2
+              environment:
+                - GRAYLOG_ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+                - GRAYLOG_PASSWORD_SECRET=somepasswordpepper  # Ensure this is at least 16 characters
+                - GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918  # Admin password SHA-2 hash
+              depends_on:
+                - mongo
+                - elasticsearch
+              ports:
+                - "9000:9000"  # Graylog web interface
+              volumes:
+                - ./graylog.sh:/home/graylog.sh
+                - graylog_data:/usr/share/graylog/data
+              entrypoint: ["/bin/sh", "-c", "/docker-entrypoint.sh  &  /home/graylog.sh"]
+
+          volumes:
+            mongo_data:  # Define the volume used by MongoDB for persisting data
+            graylog.sh:
+            graylog_data:
+            es_data:
+            mongodb_data:
+
+          networks:
+            default:  # Explicitly defining the default network is not necessary unless you're customizing it
+          EOF
+
+          echo "docker-compose.yml file created successfully!"
+
+          # Initialize Docker Swarm
+          docker swarm init
+
+          # Deploy the Stack Using Docker Swarm
+          docker stack rm llm_stack
+
+
+
+  # Create an Application Load Balancer (ALB) in the public subnet
+  ALB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: 'LLMGuard-ALB'
+      Subnets:
+        - Ref: PublicSubnet1
+        - Ref: PublicSubnet2
+      SecurityGroups:
+        - !Ref LLMGuardSecurityGroup  # Use the same security group as EC2
+      Scheme: 'internet-facing'
+      LoadBalancerAttributes:
+        - Key: 'idle_timeout.timeout_seconds'
+          Value: '60'
+      Tags:
+        - Key: Name
+          Value: 'LLMGuard-ALB'
+
+
+
+  # Create Target Groups for different services
+  TargetGroupUI:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: 'LLM-Guard-TargetGroupUI'  # Name for the target group
+      Port: 80
+      Protocol: 'HTTP'
+      VpcId: !Ref VPC
+      TargetType: 'instance'
+      HealthCheckPath: '/'
+      HealthCheckProtocol: 'HTTP'
+      #HealthCheckPort: 'traffic-port'  # Use traffic port for health check, edit to override port
+      HealthCheckTimeoutSeconds: 120  # Timeout duration for health checks
+      HealthCheckIntervalSeconds: 300  # Interval between health checks
+      HealthyThresholdCount: 10  # Number of successful health checks required to consider the target healthy
+      UnhealthyThresholdCount: 10  # Number of failed health checks required to consider the target unhealthy
+      Matcher:
+        HttpCode: '200'  # Expecting HTTP 200 as a success code
+      Targets:
+        - Id: !Ref Instance  # Register EC2 instance as a target
+
+  TargetGroupDocs:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: 'LLM-Guard-TargetGroupDocs'  # Name for the target group
+      Port: 80
+      Protocol: 'HTTP'
+      VpcId: !Ref VPC
+      TargetType: 'instance'
+      HealthCheckPath: '/docs'
+      HealthCheckProtocol: 'HTTP'
+      #HealthCheckPort: '8000'  # Use traffic port for health check, edit to override port
+      HealthCheckTimeoutSeconds: 120  # Timeout duration for health checks
+      HealthCheckIntervalSeconds: 300  # Interval between health checks
+      HealthyThresholdCount: 10  # Number of successful health checks required to consider the target healthy
+      UnhealthyThresholdCount: 10  # Number of failed health checks required to consider the target unhealthy
+      Matcher:
+        HttpCode: '200'
+      Targets:
+        - Id: !Ref Instance  # Register EC2 instance as a target
+
+  # Create Listener and rules for different paths
+  ALBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: 'fixed-response'
+          FixedResponseConfig:
+            StatusCode: 200
+            ContentType: 'text/plain'
+            MessageBody: 'OK'
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: 'HTTP'
+
+  ALBListenerRuleUI:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      ListenerArn: !Ref ALBListener
+      Actions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref TargetGroupUI
+      Conditions:
+        - Field: 'path-pattern'
+          Values:
+            - '/'
+      Priority: 1
+
+  ALBListenerRuleDocs:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      ListenerArn: !Ref ALBListener
+      Actions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref TargetGroupDocs
+      Conditions:
+        - Field: 'path-pattern'
+          Values:
+            - '/docs'
+      Priority: 2
+
+  ALBListenerRuleOpenApi:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      ListenerArn: !Ref ALBListener
+      Actions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref TargetGroupDocs
+      Conditions:
+        - Field: 'path-pattern'
+          Values:
+            - '/openapi.json'
+      Priority: 3
+
+Outputs:
+  InstancePrivateIP:
+    Description: "Private IP Address of the EC2 Instance"
+    Value: !GetAtt Instance.PrivateIp
+  ALBDNSName:
+    Description: "ALB DNS Name"
+    Value: !GetAtt ALB.DNSName

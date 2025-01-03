@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aitrism-chart.fullname" . }}-kafka-consumer
+  labels:
+     {{- include "kafka-consumer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+       {{- include "kafka-consumer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+       {{- with .Values.podAnnotations }}
+      annotations:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+      labels:
+         {{- include "kafka-consumer.selectorLabels" . | nindent 8 }}
+    spec:
+       {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+      serviceAccountName: {{ include "kafka-consumer.serviceAccountName" . }}
+      securityContext:
+         {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+        - name: kafka-consumer
+          securityContext:
+             {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.kafka_consumer.image_kafka }}"
+          imagePullPolicy: {{ .Values.kafka_consumer.pullPolicy }}
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "{{ .Values.kafka.bootstrap_server }}"
+            - name: MONGODB_SVC_NAME
+              value: {{ .Values.mongodb.service.mongodb_service_name }}
+          # If you have any ports to expose (optional)
+          # ports:
+          #   - name: http
+          #     containerPort: 80
+          #     protocol: TCP
+          resources:
+             {{- toYaml .Values.resources | nindent 12 }}
+       {{- with .Values.nodeSelector }}
+      nodeSelector:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       {{- with .Values.affinity }}
+      affinity:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       {{- with .Values.tolerations }}
+      tolerations:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}

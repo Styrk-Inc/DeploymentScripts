@@ -1,0 +1,376 @@
+Description: >
+  This template deploys a VPC, with a pair of public and private subnets spread 
+  across two Availabilty Zones. It deploys an Internet Gateway, with a default 
+  route on the public subnets. It deploys a pair of NAT Gateways (one in each AZ), 
+  and default routes for them in the private subnets.
+  It then deploys 'EKS Cluster, Node Group, VPC, and Public Subnets'
+
+Parameters:
+  MasterNodeGroupDesiredSize:
+    Description: Desired Size for NodeGroup
+    Type: String
+  MasterInstanceType:
+    Description: Instance Type (Ex- t2.xlarge)
+    Type: String
+
+  MasterNodeGroupMinSize:
+    Description: Minimum Size for NodeGroup
+    Type: String
+
+  MasterNodeGroupMaxSize:
+    Description: Maximum Size for NodeGroup
+    Type: String
+
+  MasterSSHKeyname:
+    Description: SSH Keyname for remote access to the nodes
+    Type: String
+    
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.0.0.0/18
+
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.0.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.0.2.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.0.3.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.0.4.0/24
+
+Resources:
+  # The virtual private cloud to run the ECS environment
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+
+  # An internet gateway is required to access public-facing services
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-NodeGroup-IGW
+
+  # Attach the internet gateway to the VPC
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # First public subnet, will contain the bastion host, a load balancer, and a nat gateway
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Public Subnet (AZ1)
+
+  # Second public subnet, will contain a load balancer and a nat gateway
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Public Subnet (AZ2)
+
+  # First private subnet, will contain the EC2 hosts for ECS
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Private Subnet (AZ1)
+
+  # Second private subnet, will contain the EC2 hosts for ECS
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Private Subnet (AZ2)
+
+  # Elastic IP address for the first nat gateway
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  # Elastic IP address for the second nat gateway
+  NatGateway2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  # The first nat gateway, will allow connectivity from the first private subnet to the internet gateway
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  # The second nat gateway, will allow connectivity from the second private subnet to the internet gateway
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+      SubnetId: !Ref PublicSubnet2
+
+  # The route table for the public subnets
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Public Routes
+
+  # Default route table for the public subnets to direct traffic to the internet gateway
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Association for the first subnet to the public route table
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  # Association for the second subnet to the public route table
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  # Route table for the first private subnet
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Private Routes (AZ1)
+
+  # Default route table for the first private subnet to direct traffic to the first nat gateway
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  # Route table association for the first private subnet
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  # Route table for the second private subnet
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Private Routes (AZ2)
+
+  # Default route table for the second private subnet to direct traffic to the second nat gateway
+  DefaultPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  # Route table association for the second private subnet
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  NodeSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security Group for EKS Nodes'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: '-1'
+          FromPort: -1
+          ToPort: -1
+          CidrIp: '0.0.0.0/0'  # Modify as necessary for your environment
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-EKS-NodeGroup-SG
+
+
+  # IAM Role for EKS Cluster
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+
+  # IAM Role for EKS Node Group
+  EksNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy'
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy'
+        - 'arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy'
+        - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly'
+        - 'arn:aws:iam::aws:policy/AmazonEC2FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonCognitoPowerUser'
+        - 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly'
+      Policies:
+        - PolicyName: "AdditionalEKSPermissions"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ec2:Describe*"
+                  - "ec2:AttachVolume"
+                  - "ec2:DetachVolume"
+                  - "ec2:ModifyInstanceAttribute"
+                Resource: "*"
+
+  EKSNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EksNodeRole
+
+  MyEksCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Sub ${AWS::StackName}-Cluster
+      Version: '1.30'
+      RoleArn: !GetAtt EksClusterRole.Arn
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+
+  # NodeLaunchTemplate:
+  #   Type: AWS::EC2::LaunchTemplate
+  #   Properties:
+  #     LaunchTemplateName: !Sub ${AWS::StackName}-NodeLaunchTemplate
+  #     LaunchTemplateData:
+  #       BlockDeviceMappings:
+  #         - DeviceName: /dev/sda1 # The device name may vary based on the AMI
+  #           Ebs:
+  #             VolumeSize: 50 # The desired disk size in GiB
+  #             VolumeType: gp2 # Specify the volume type as needed
+  #             DeleteOnTermination: true
+  #       ImageId: ami-00b8917ae86a424c9   # Amazon Linux 2
+  #       KeyName: infrablok_key
+  #       InstanceType: t2.xlarge
+  #       SecurityGroupIds:
+  #         - !Ref NodeSecurityGroup
+  #       UserData:
+  #         Fn::Base64: !Sub |
+  #           #!/bin/bash
+  #           set -o xtrace
+  #           /etc/eks/bootstrap.sh ${MyEksCluster}
+  #           /opt/aws/bin/cfn-signal \
+  #                           --exit-code $? \
+  #                           --stack  ${AWS::StackName} \
+  #                           --resource MyEksNodeGroup  \
+  #                           --region ${AWS::Region}
+
+
+  # EKS Node Group
+  MyEksNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: [ "MyEksCluster", "EksNodeRole", "EksClusterRole", "NodeSecurityGroup" ]
+    Properties:
+      AmiType: AL2_x86_64
+      DiskSize: 50
+     # ReleaseVersion: String
+      RemoteAccess: 
+        Ec2SshKey: !Ref MasterSSHKeyname
+        SourceSecurityGroups: 
+          - !Ref NodeSecurityGroup
+      ClusterName: !Ref MyEksCluster
+      NodegroupName: !Sub ${AWS::StackName}-NodeGroup
+      NodeRole: !GetAtt EksNodeRole.Arn
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      ScalingConfig:
+        DesiredSize: !Ref MasterNodeGroupDesiredSize
+        MinSize: !Ref MasterNodeGroupMinSize
+        MaxSize: !Ref MasterNodeGroupMaxSize
+      InstanceTypes:
+        - !Ref MasterInstanceType
+      # LaunchTemplate:
+      #   Id: !Ref NodeLaunchTemplate
+      Labels:
+        Role: worker
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+

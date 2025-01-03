@@ -1,0 +1,110 @@
+replicaCount: 1
+fullnameOverride: ""
+
+imagePullSecrets:
+  - name: regcred3
+imagePullPolicy: Always
+
+
+env:
+  AITRISM_MASTER_DNS: "44.223.116.120"
+  AITRISM_KAFKA_BOOTSTRAP_SERVER: "54.163.76.141"
+  SECRET_SOURCE: "kubernetes"
+#  BROKER_URI: "amqp://aitrism:aitrism@a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:5672"
+#  BACKEND_URI: "redis://a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:6379/0"
+  BATCH_SIZE: 1000
+  REWEIGHTING_EPOCHS: 50
+
+service:
+  type: ClusterIP
+  ports:
+    prometheus: 9090
+    uvicorn: 8000
+    grafana: 3000
+    rabbitmqManagement: 15672
+    rabbitmq: 5672
+
+fastapi:
+  image_fastapi: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:web"
+# image: 975757560751.dkr.ecr.us-east-1.amazonaws.com/aitrism:web
+  port: 8000
+
+ntpsetup:
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:deamonset"
+
+celeryWorker:
+  image_worker: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:worker"
+  # image: "975757560751.dkr.ecr.us-east-1.amazonaws.com/aitrism:worker"
+  workingDir: "/app"
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "8192m"   # Requesting n CPU core
+      memory: "32768Mi"  # Adjusted the memory request
+      nvidia.com/gpu: "1" # Requesting 1 GPU
+    limits:
+      cpu: "12288m"   # Limiting the CPU core
+      memory: "43008Mi"
+      nvidia.com/gpu: "1" 
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 80
+
+
+prometheus:
+  image: "prom/prometheus"
+  configVolumeName: "prometheus-config-volume"
+  ports:
+    containerPort: 9090
+
+
+grafana:
+  image: "grafana/grafana"
+  port: 3000
+  nodePort: 31000  # Default NodePort for Grafana, change if needed
+
+rabbitmq:
+  image: "rabbitmq:3-management"
+  env:
+    erlangCookie: "SWQOKODSQALRPCLNMEQG"
+    defaultUser: "guest"
+    defaultPass: "guest"
+    defaultVhost: "/"
+    #BROKER_URI: "amqp://aitrism:aitrism@a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:5672"
+  ports:
+    management: 15672
+    amqp: 5672
+
+redis:
+  image: "redis:7.2.3"
+  ports:
+    redis: 6379
+  env:
+    #BACKEND_URI: "redis://a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:6379/0"
+
+kafka:
+  replicaCount: 1
+  image: confluentinc/cp-kafka:latest
+
+  ports:
+    containerPort: 9092
+    internalPort: 31092
+  env:
+    brokerId: "1"
+    zookeeperConnect: "zookeeper-service:2181"
+    #bootstrap_server: "a5bf9bd86552c47c09d15dbd80523cc4-06672bd50567a6d6.elb.us-east-1.amazonaws.com"
+    listenerSecurityProtocolMap: "LISTENER_INTERNAL:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    interBrokerListenerName: "LISTENER_INTERNAL"
+    offsetsTopicReplicationFactor: "1"
+  imagePullSecrets: regcred3
+
+zookeeper:
+  image: zookeeper:3.7.2
+  replicaCount: 1
+  ports:
+    client: 2181
+  env:
+    clientPort: 2181
+    tickTime: 2000

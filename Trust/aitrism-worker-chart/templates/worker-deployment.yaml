@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aitrism-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: aitrism
+  template:
+    metadata:
+      labels:
+        app: aitrism
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      volumes:
+        - name: {{ .Values.prometheus.configVolumeName }}
+          configMap:
+            name: prometheus-config
+        - name: rabbitmq-config-volume
+          configMap:
+            name: rabbitmq-config
+      containers:
+        - name: celery-fastapi-worker
+          image: "{{ .Values.celeryWorker.image_worker }}"
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "kill -SIGTERM 1" ]
+          resources:
+            requests:
+              cpu: {{ .Values.celeryWorker.resources.requests.cpu }}
+              memory: {{ .Values.celeryWorker.resources.requests.memory }}
+              nvidia.com/gpu: 1
+            limits:
+              cpu: {{ .Values.celeryWorker.resources.limits.cpu }}
+              memory: {{ .Values.celeryWorker.resources.limits.memory }} 
+              nvidia.com/gpu: 1
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          volumeMounts:
+            - name: rabbitmq-config-volume
+              mountPath: /etc/rabbitmq
+              readOnly: true
+          workingDir: "{{ .Values.celeryWorker.workingDir }}"
+          command: [ "/bin/sh", "-c" ]
+          args: [ "/start-celery-worker" ]
+          ports:
+            - containerPort: {{ .Values.fastapi.port }}
+          env:
+            - name: NUM_WORKERS
+              value: "16"
+            - name: BROKER_URI
+              #value: amqp://aitrism:aitrism@a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:5672
+              value: amqp://aitrism:aitrism@{{ .Values.env.AITRISM_MASTER_DNS }}:5672
+{{/*              value: {{ .Values.rabbitmq.env.BROKER_URI }}*/}}
+            - name: BACKEND_URI
+              #value: redis://a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:6379/0
+{{/*              value: {{ .Values.redis.env.BACKEND_URI }}*/}}
+              value: redis://{{ .Values.env.AITRISM_MASTER_DNS }}:6379/0
+
+            - name: KAFKA_BOOTSTRAP_SERVERS
+{{/*              value: {{ .Values.kafka.env.bootstrap_server }}:{{ .Values.kafka.ports.containerPort }}*/}}
+              value: {{ .Values.env.AITRISM_KAFKA_BOOTSTRAP_SERVER }}:{{ .Values.kafka.ports.containerPort }}
+            - name: BATCH_SIZE
+              value: "{{ .Values.env.BATCH_SIZE }}"
+            - name: REWEIGHTING_EPOCHS
+              value: "{{ .Values.env.REWEIGHTING_EPOCHS }}"
+            - name: SECRET_SOURCE
+              value: "{{ .Values.env.SECRET_SOURCE }}"
+          envFrom:
+            - secretRef:
+               name: aitrism-aws
+{{/*          livenessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /vs/health*/}}
+{{/*              port: {{ .Values.fastapi.port }}*/}}
+{{/*            initialDelaySeconds: 15*/}}
+{{/*            timeoutSeconds: 2*/}}
+{{/*          readinessProbe:*/}}
+{{/*            httpGet:*/}}
+{{/*              path: /vs/health*/}}
+{{/*              port: {{ .Values.fastapi.port }}*/}}
+{{/*            initialDelaySeconds: 5*/}}
+{{/*            timeoutSeconds: 2*/}}
+        # Other containers as needed...

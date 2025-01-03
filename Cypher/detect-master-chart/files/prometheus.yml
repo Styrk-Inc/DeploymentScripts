@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s  # Adjust the scrape interval as needed
+
+scrape_configs:
+  - job_name: 'detect'
+    static_configs:
+      - targets: [ 'detect:9090' ]
+  - job_name: 'detect-worker'
+    static_configs:
+      - targets: [ '18.210.106.42' ]
+

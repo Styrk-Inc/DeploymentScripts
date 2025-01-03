@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: detect
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "detect-master"
+    service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-05e41348207c93ebd,eipalloc-0ca7dc2219db5c9fe
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+      name: uvicorn-port
+
+    - port: {{ .Values.service.ports.rabbitmqManagement }}
+      name: rabbitmq-management-port
+    - port: {{ .Values.service.ports.rabbitmq }}
+      name: rabbitmq-port
+    - port: 6379
+      name: redis
+    - port: 80
+      name: ui
+    - port: 5555
+      name: flower   
+    - port: 3000
+      name: grafana
+    - port: 9090
+      name: prometheus 
+ 
+  selector:
+    app: detect

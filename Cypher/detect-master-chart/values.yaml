@@ -1,0 +1,312 @@
+replicaCount: 1
+fullnameOverride: ""
+
+imagePullSecrets:
+  - name: regcred
+
+imagePullPolicy: "Always"
+
+env:
+#    BROKER_URI: "amqp://detect:admin@admin:5672"
+#    BACKEND_URI: "redis://detect:6379/0"
+  DETECT_MASTER_DNS: "52.5.20.207"
+
+service:
+  type: ClusterIP 
+  ports:
+    prometheus: 9090
+    uvicorn: 8000
+    grafana: 3000
+    rabbitmqManagement: 15672
+    rabbitmq: 5672
+
+fastapi:
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:master"
+  port: 8000
+  env:
+    AIRFLOW_USER: "admin" 
+    AIRFLOW_PASSWORD: "admin"
+    AIRFLOW_SERVER_URL: "http://detect-webserver:8080"
+    COGNITO_CLIENT_ID: "5dgd5838sj1hufc3dbgh6b8u7d"
+    COGNITO_USER_POOL_ID: "us-east-1_hxo59fm71"
+    COGNITO_REGION: "us-east-1"
+    ADMIN_USER: "admin"
+    GRAYLOG_HOST: "graylog"
+    GRAYLOG_PORT: "12201"
+    APP_TYPE: "fastapi"
+ 
+
+celeryWorker:
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:worker"
+  workingDir: "/app"
+
+frontend:
+  image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:ui
+
+
+rabbitmq:
+  image: "rabbitmq:3-management"
+  env:
+    erlangCookie: "SWQOKODSQALRPCLNMEQG"
+    defaultUser: "admin"
+    defaultPass: "admin"
+    defaultVhost: "/"
+    BROKER_URI: "amqp://admin:admin@detect-rabbitmq:5672"
+    CELERY_BROKER_URL: "pyamqp://admin:admin@detect-rabbitmq:5672"
+  ports:
+    management: 15672
+    amqp: 5672
+
+redis:
+  image: "redis:7.2.3"
+  ports:
+    redis: 6379
+  env:
+    #    BROKER_URI: "amqp://guest:guest@localhost:5672/"
+    BACKEND_URI: "redis://detect-rabbitmq:6379/0"
+
+prometheus:
+  image: "prom/prometheus:v2.24.0"
+  configVolumeName: "prometheus-config-volume"
+  ports:
+    containerPort: 9090
+
+  # server:
+  #   extraArgs:
+  #     - --web.config.file=/etc/prometheus/web-config/web-config.yaml
+
+  # extraConfigmapMounts:
+  # - name: prometheus-config
+  #   mountPath: /etc/prometheus
+  #   configMap: prometheus-config
+  #   subPath: prometheus.yml
+  #   readOnly: true
+
+  # - name: web-config
+  #   mountPath: /etc/prometheus/web-config
+  #   configMap: prometheus-config
+  #   subPath: web-config.yml
+  #   readOnly: true
+
+  # extraVolumeMounts:
+  # - name: tls-secret
+  #   mountPath: /etc/prometheus/certs
+  #   secret:
+  #     secretName: prometheus-tls
+
+  extraArgs:
+    - '--web.config.file=/etc/prometheus/web-config.yml'
+
+
+grafana:
+  image: "grafana/grafana"
+  port: 3000
+  nodePort: 31000  # Default NodePort for Grafana, change if needed
+  env:
+    GF_SECURITY_ADMIN_USER: "Styrk"
+    GF_SECURITY_ADMIN_PASSWORD: "Styrk@2024"
+
+
+mongodb:
+  global:
+    storageClass: ebs-csi-sc
+  #architecture: replicaset
+  useStatefulSet: true
+  persistence:
+    enabled: true
+    #existingClaim: datadir-aitrism1-mongodb-0
+    storageClass: ebs-csi-sc
+  persistentVolumeClaimRetentionPolicy:
+    ## @param persistentVolumeClaimRetentionPolicy.enabled Enable Persistent volume retention policy for MongoDB(&reg;) Statefulset
+    ##
+    enabled: true
+    ## @param persistentVolumeClaimRetentionPolicy.whenScaled Volume retention behavior when the replica count of the StatefulSet is reduced
+    ##
+    whenScaled: Retain
+    ## @param persistentVolumeClaimRetentionPolicy.whenDeleted Volume retention behavior that applies when the StatefulSet is deleted
+    ##
+    whenDeleted: Retain
+  service:
+    #nameOverride: aitrism1-mongodb
+    mongodb_service_name: mongodb://admin:admin@detect-mongodb/sensitive_information
+    type: LoadBalancer
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: "detect-mongodb"
+      service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-066d8569330880b46,eipalloc-0acae1f9f0c08085e
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  ports:
+    mongo: 27017
+  auth:
+    rootPassword: admin
+    username: "admin"
+    password: "admin"
+    database: "sensitive_information"
+    usernames: [ "admin" ]
+    passwords: [ "admin" ]
+    databases: [ sensitive_information ]
+  bindIP: "0.0.0.0"
+
+
+nameOverride: ""
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: { }
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: { }
+
+securityContext: { }
+  # fsGroup: 2000
+  # runAsUser: 1000
+# runAsGroup: 3000
+
+resources: { }
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+#   memory: 128Mi
+
+nodeSelector: { }
+
+tolerations: [ ]
+
+affinity: { }
+
+persistence:
+  enabled: true
+  storageClass: local-storage
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  createPvc: false
+
+backup:
+  cronjob:
+    storage:
+      existingClaim: mongodb-backup-ebs-csi
+
+storage_classes:
+  local: local-storage
+  ebs: ebs-sc
+  ebs_csi: ebs-csi-sc
+persistent_volumes:
+  local: local
+  ebs_csi: aws-ebs-csi-pv
+persistent_volume_claims:
+  mongodb: mongodb-pvc
+  mongodb_backup: mongodb-backup-ebs-csi
+
+
+airflow:
+  dags:
+    persistence:
+      enabled: true
+      storageClassName: ebs-csi-sc # Optional, depending on your cluster setup
+      accessMode: ReadWriteOnce
+      size: 1Gi
+
+  config:
+    core:
+      dags_folder: "/opt/airflow/dags"
+    webserver:
+      expose_config: 'True'  # by default this is 'False'
+    api:
+      auth_backends: airflow.api.auth.backend.basic_auth
+
+  webserver:
+    service:
+      type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    extraInitContainers:
+      - name: create-user
+        image: "apache/airflow:2.1.2" # Use the appropriate Airflow image version
+        command: ["bash", "-c"]
+        args:
+          - |
+            airflow users create \
+              --username Styrk \
+              --firstname Styrk \
+              --lastname admin \
+              --role Admin \
+              --email Styrk@styrk.com \
+              --password Styrk@2024
+
+    env:
+      - name: AIRFLOW__WEBSERVER__AUTHENTICATE
+        value: "True"
+      - name: AIRFLOW__WEBSERVER__AUTH_BACKEND
+        value: "airflow.contrib.auth.backends.password_auth"
+      - name: AIRFLOW__CORE__EXECUTOR
+        value: "LocalExecutor"
+      # - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+      #   value: "sqlite:////usr/local/airflow/airflow.db"
+      - name: AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX
+        value: "True"
+      # - name: AIRFLOW__WEBSERVER__SECRET_KEY
+      #   value: "random_secret_key"
+
+  scheduler:
+    startupProbe:
+      failureThreshold: 6
+      periodSeconds: 300
+      timeoutSeconds: 20
+      command: ~
+  #    resources:
+  #      limits:
+  #        cpu: 100m
+  #        memory: 128Mi
+  #      requests:
+  #        cpu: 100m
+  #        memory: 128Mi
+    extraInitContainers:
+      - name: copy-dags
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:airflow"
+        command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
+        volumeMounts:
+          - name: dags
+            mountPath: /opt/airflow/dags
+  workers:
+    persistence:
+      enabled: true
+      size: 1Gi
+    extraInitContainers:
+      - name: copy-dags
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:airflow"
+        command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
+        volumeMounts:
+          - name: dags
+            mountPath: /opt/airflow/dags
+  triggerer:
+    persistence:
+      enabled: true
+      size: 1Gi
+  dagProcessor:
+    extraInitContainers:
+      - name: copy-dags
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:airflow"
+        command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
+        volumeMounts:
+          - name: aitrism-dags
+            mountPath: /opt/airflow/dags
+  logs:
+    persistence:
+      # Enable persistent volume for storing logs
+      enabled: false
+      # Volume size for logs
+      size: 1Gi
+      # Annotations for the logs PVC
+      annotations: { }
+      # If using a custom storageClass, pass name here
+      storageClassName:
+      ## the name of an existing PVC to use
+      existingClaim:
+
+
+

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aitrism-chart.fullname" . }}-worker
+#  annotations:
+ #   external-dns.alpha.kubernetes.io/hostname: "aitrism-worker"
+  #  service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.ports.prometheus }}
+      name: prometheus-port
+    - port: {{ .Values.service.ports.uvicorn }}
+      name: uvicorn-port
+    - port: {{ .Values.service.ports.grafana }}
+      name: grafana-port
+    - port: {{ .Values.service.ports.rabbitmqManagement }}
+      name: rabbitmq-management-port
+    - port: {{ .Values.service.ports.rabbitmq }}
+      name: rabbitmq-port
+  selector:
+    app: {{ include "aitrism-chart.fullname" . }}-worker

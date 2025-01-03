@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: detect-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: detect
+  template:
+    metadata:
+      labels:
+        app: detect
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      volumes:
+        - name: rabbitmq-config-volume
+          configMap:
+            name: rabbitmq-config
+      containers:
+        - name: celery-fastapi-worker
+          image: "{{ .Values.celeryWorker.image }}"
+          resources:
+            requests:
+              cpu: {{ .Values.celeryWorker.resources.requests.cpu }}
+              memory: {{ .Values.celeryWorker.resources.requests.memory }}
+              nvidia.com/gpu: 1   # Request 1 GPU
+            limits:
+              cpu: {{ .Values.celeryWorker.resources.limits.cpu }}
+              memory: {{ .Values.celeryWorker.resources.limits.memory }}
+              nvidia.com/gpu: 1   # Request 1 GPU
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          volumeMounts:
+            - name: rabbitmq-config-volume
+              mountPath: /etc/rabbitmq
+              readOnly: true
+          workingDir: "{{ .Values.celeryWorker.workingDir }}"
+          command: [ "/bin/sh", "-c" ]
+          args: [ "/app/start" ]
+          ports:
+            - containerPort: {{ .Values.fastapi.port }}
+          env:
+            - name: NUM_WORKERS
+              value: "{{ .Values.env.NUM_WORKERS }}"
+            - name: NUM_WORKERS_DEFAULT
+              value: "{{ .Values.env.NUM_WORKERS_DEFAULT }}"
+            - name: NUM_WORKERS_REDIS
+              value: "{{ .Values.env.NUM_WORKERS_REDIS }}"
+            - name: graylog_host
+              value: "{{ .Values.env.GRAYLOG_HOST }}"
+            - name: GRAYLOG_PORT
+              value: "{{ .Values.env.GRAYLOG_PORT }}"
+            - name: APP_TYPE
+              value: "{{ .Values.env.APP_TYPE }}"
+            - name: BROKER_URI
+              value: amqp://admin:admin@{{ .Values.env.DETECT_RABBITMQ_IP }}:5672
+            - name: BACKEND_URI
+              value: redis://{{ .Values.env.DETECT_RABBITMQ_IP }}:6379/0
+            - name: MONGODB_SVC_NAME
+              value: mongodb://admin:admin@{{ .Values.env.MONGODB_SVC_NAME }}/sensitive_information
+            - name: REDIS_CACHE_URI
+              value: redis://{{ .Values.env.REDIS_CACHE_URI }}:6379/0
+          envFrom:
+            - secretRef:
+                name: aitrism-aws

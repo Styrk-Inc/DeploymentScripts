@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: detect-rabbitmq
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "detect-rabbitmq"
+    service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-0182daff49aa04b8f,eipalloc-0fa84dc6af57e2889
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+    - port: 15672
+      targetPort: 15672
+      name: management
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: detect-rabbitmq

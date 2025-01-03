@@ -1,0 +1,77 @@
+replicaCount: 1
+fullnameOverride: ""
+
+imagePullSecrets:
+  - name: regcred
+imagePullPolicy: Always
+
+
+env:
+ # DETECT_MASTER_DNS: "18.119.44.4"
+  MONGODB_SVC_NAME: "52.5.110.157"
+  DETECT_RABBITMQ_IP: "34.193.213.132"
+  NUM_WORKERS: "4"
+  NUM_WORKERS_DEFAULT: "3"
+  NUM_WORKERS_REDIS: "25"
+  GRAYLOG_HOST: "graylog"
+  GRAYLOG_PORT: "12201"
+  APP_TYPE: "worker"
+  REDIS_CACHE_URI: "worker-redis"
+#  AITRISM_KAFKA_BOOTSTRAP_SERVER: "44.219.90.97"
+#  BROKER_URI: "amqp://aitrism:aitrism@a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:5672"
+#  BACKEND_URI: "redis://a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:6379/0"
+#  BATCH_SIZE: 1000
+#  REWEIGHTING_EPOCHS: 50
+
+service:
+  type: ClusterIP
+  ports:
+    prometheus: 9090
+    uvicorn: 8000
+    grafana: 3000
+    rabbitmqManagement: 15672
+    rabbitmq: 5672
+
+fastapi:
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:master"
+  port: 8000
+
+celeryWorker:
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:worker"
+  workingDir: "/app"
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "30720m"   # Requesting n CPU core
+      memory: "65536Mi"  # Adjusted the memory request
+    limits:
+      cpu: "32768m"   # Limiting the CPU core
+      memory: "67584Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 50
+    targetMemoryUtilizationPercentage: 50
+
+
+rabbitmq:
+  image: "rabbitmq:3-management"
+  env:
+    erlangCookie: "SWQOKODSQALRPCLNMEQG"
+    defaultUser: "admin"
+    defaultPass: "admin"
+    defaultVhost: "/"
+    BROKER_URI: "amqp://admin:admin@detect:5672"
+  ports:
+    management: 15672
+    amqp: 5672
+
+redis:
+  image: "redis:7.2.3"
+  ports:
+    redis: 6379
+  env:
+    #BACKEND_URI: "redis://a11f9f04b3c944b19a9f4ec469d2a953-1864683ef98c010a.elb.us-east-1.amazonaws.com:6379/0"
+
+

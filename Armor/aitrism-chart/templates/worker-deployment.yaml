@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aitrism-worker-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "aitrism-chart.fullname" . }}-worker
+  template:
+    metadata:
+      labels:
+        app: {{ include "aitrism-chart.fullname" . }}-worker
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: rabbitmq
+          image: "{{ .Values.rabbitmq.image }}"
+          ports:
+            - containerPort: {{ .Values.rabbitmq.ports.amqp }}
+            - containerPort: {{ .Values.rabbitmq.ports.management }}
+          env:
+            - name: RABBITMQ_ERLANG_COOKIE
+              value: "{{ .Values.rabbitmq.env.erlangCookie }}"
+            - name: RABBITMQ_DEFAULT_USER
+              value: "{{ .Values.rabbitmq.env.defaultUser }}"
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "{{ .Values.rabbitmq.env.defaultPass }}"
+            - name: RABBITMQ_DEFAULT_VHOST
+              value: "{{ .Values.rabbitmq.env.defaultVhost }}"
+            - name: BROKER_URI
+              value: "{{ .Values.env.BROKER_URI }}"
+            - name: BACKEND_URI
+              value: "{{ .Values.env.BACKEND_URI  }}"
+
+        - name: redis
+          image: "{{ .Values.redis.image}}"
+          ports:
+            - containerPort: {{ .Values.redis.ports.redis}}
+
+        - name: celery-worker
+          image: "{{ .Values.celeryWorker.image }}"
+          workingDir: "{{ .Values.celeryWorker.workingDir }}"
+          command: [ "/bin/sh", "-c" ]
+          args: [ "/start-celeryworker" ]
+          env:
+            - name: BROKER_URI
+              value: "{{ .Values.env.BROKER_URI }}"
+            - name: BACKEND_URI
+              value: "{{ .Values.env.BACKEND_URI }}"
+
+
+

@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aitrism-chart.fullname" . }}-zookeeper
+spec:
+  replicas: {{ .Values.zookeeper.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "aitrism-chart.fullname" . }}-zookeeper
+  template:
+    metadata:
+      labels:
+        app: {{ include "aitrism-chart.fullname" . }}-zookeeper
+    spec:
+      containers:
+        - name: zookeeper
+          image: "{{ .Values.zookeeper.image }}"
+          ports:
+            - containerPort: {{ .Values.zookeeper.ports.client }}
+          env:
+            - name: ZOOKEEPER_CLIENT_PORT
+              value: "{{ .Values.zookeeper.env.clientPort }}"
+            - name: ZOOKEEPER_TICK_TIME
+              value: "{{ .Values.zookeeper.env.tickTime }}"

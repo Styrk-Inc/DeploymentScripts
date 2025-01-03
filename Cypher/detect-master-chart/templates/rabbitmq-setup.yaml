@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-setup-script
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    meta.helm.sh/release-name: "detect"
+    meta.helm.sh/release-namespace: "default"
+data:
+  setup.sh: |
+    #!/bin/bash
+    # Wait for RabbitMQ server to start
+    set -x
+    sleep 10
+    # Add a new user (replace 'newuser' and 'newpassword' with your values)
+    rabbitmqctl add_user admin admin || echo "Failed user"
+    # Set permissions for the new user
+    rabbitmqctl set_permissions -p / admin ".*" ".*" ".*" || echo " Failed permissions"

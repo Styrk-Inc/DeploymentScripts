@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: detect-fastapi
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: detect
+  template:
+    metadata:
+      labels:
+        app: detect
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+
+      initContainers:
+        - name: init-config
+          image: busybox
+          command: ['sh', '-c', 'echo "$CONFIG_JS" > /config/config.js']
+          env:
+            - name: CONFIG_JS
+              valueFrom:
+                configMapKeyRef:
+                  name: react-config
+                  key: CONFIG_JS
+          volumeMounts:
+            - name: config
+              mountPath: /config
+
+      containers:
+        - name: celery-fastapi
+          image: "{{ .Values.fastapi.image }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          volumeMounts:
+            - name: rabbitmq-config-volume
+              mountPath: /etc/rabbitmq
+              readOnly: true
+          workingDir: "{{ .Values.celeryWorker.workingDir }}"
+          command: ["/bin/sh", "-c"]
+          args: ["/app/start"]
+          ports:
+            - containerPort: {{ .Values.fastapi.port }}
+          env:
+            - name: MONGODB_SVC_NAME
+              value: "mongodb://admin:admin@detect-mongodb/sensitive_information"
+            - name: BROKER_URI
+              value: "{{ .Values.rabbitmq.env.BROKER_URI }}"
+            - name: BACKEND_URI
+              value: "{{ .Values.redis.env.BACKEND_URI }}"
+            - name: AIRFLOW_USER
+              value: "{{ .Values.fastapi.env.AIRFLOW_USER }}"
+            - name: AIRFLOW_PASSWORD
+              value: "{{ .Values.fastapi.env.AIRFLOW_PASSWORD }}"
+            - name: AIRFLOW_SERVER_URL
+              value: "{{ .Values.fastapi.env.AIRFLOW_SERVER_URL }}"
+            - name: COGNITO_CLIENT_ID
+              value: "{{ .Values.fastapi.env.COGNITO_CLIENT_ID }}"
+            - name: COGNITO_USER_POOL_ID
+              value: "{{ .Values.fastapi.env.COGNITO_USER_POOL_ID }}"
+            - name: COGNITO_REGION
+              value: "{{ .Values.fastapi.env.COGNITO_REGION }}"
+            - name: ADMIN_USER
+              value: "{{ .Values.fastapi.env.ADMIN_USER }}"
+            - name: graylog_host
+              value: "{{ .Values.fastapi.env.GRAYLOG_HOST }}"
+            - name: GRAYLOG_PORT
+              value: "{{ .Values.fastapi.env.GRAYLOG_PORT }}"
+            - name: APP_TYPE
+              value: "{{ .Values.fastapi.env.APP_TYPE }}"
+
+        - name: reactapp
+          image: "{{ .Values.frontend.image }}"
+          ports:
+           - containerPort : 80
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/nginx/html/config.js
+              subPath: config.js
+
+        - name: flower
+          image: "mher/flower"
+          ports:
+           - containerPort : 5555
+          env:
+            - name: CELERY_BROKER_URL
+              value: "{{ .Values.rabbitmq.env.CELERY_BROKER_URL }}"
+
+
+        - name: prometheus
+          image: "{{ .Values.prometheus.image }}"
+          ports:
+            - containerPort: {{ .Values.prometheus.ports.containerPort }}
+          volumeMounts:
+            - name: {{ .Values.prometheus.configVolumeName }}
+              mountPath: /etc/prometheus
+              readOnly: true
+          #   # - name: web-config
+          #   #   mountPath: /etc
+          #   #   subPath: /prometheus/web-config.yml
+          #   - name: tls-secret
+          #     mountPath: /etc/prometheus/certs
+          # args:
+          #   - '--config.file=/etc/prometheus/prometheus.yml'
+          #   - '--web.config.file=/etc/prometheus/web-config.yml'
+          #   # {{- if .Values.prometheus.extraArgs }}
+          #   # {{- range .Values.prometheus.extraArgs }}
+          #   # - {{ . }}
+          #   # {{- end }}
+          #   # {{- end }}
+
+        - name: config-reloader
+          image: jimmidyson/configmap-reload:v0.3.0
+          args:
+            - --volume-dir=/etc/prometheus
+            - --webhook-url=http://localhost:9090/-/reload
+          volumeMounts:
+            - name: {{ .Values.prometheus.configVolumeName }}
+              mountPath: /etc/prometheus
+
+        - name: grafana
+          image: "{{ .Values.grafana.image }}"
+          ports:
+            - containerPort: {{ .Values.grafana.port }}
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "{{ .Values.grafana.env.GF_SECURITY_ADMIN_USER }}"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "{{ .Values.grafana.env.GF_SECURITY_ADMIN_PASSWORD }}"
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: rabbitmq-config-volume
+          configMap:
+            name: rabbitmq-config
+        - name: tls-secret
+          secret:
+            secretName: prometheus-tls
+        - name: {{ .Values.prometheus.configVolumeName }}
+          configMap:
+            name: prometheus-config
+        - name: grafana-datasources
+          configMap:
+            name: grafana-datasources
+

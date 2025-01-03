@@ -1,0 +1,117 @@
+{
+  "id": "unique_id_for_document",
+  "report_title": "AI Model Vulnerability Scan Report",
+  "created_at": "2023-12-01T00:00:00Z",
+  "date": "2023-12-01T00:00:00Z",
+  "model_info": {
+    "name": "Image Classification Model",
+    "version": "1.0",
+    "type": "Neural Network"
+  },
+  "attack_profiles": [
+    {
+      "attack_type": "FGSM",
+      "description": "Fast Gradient Sign Method, which creates adversarial examples.",
+      "threat_level": "High",
+      "epsilons": [
+        {
+          "epsilon_value": "0.01",
+          "details": "Perturbation added in the direction of the gradient sign."
+        },
+        {
+          "epsilon_value": "0.02",
+          "details": "Increased perturbation for more aggressive testing."
+        }
+      ]
+    }
+  ],
+  "model_performance_metrics": {
+    "initial": {
+      "precision": 0.95,
+      "recall": 0.96,
+      "accuracy": 0.95,
+      "f1_score": 0.95
+    },
+    "post_attack": {
+      "FGSM": [
+        {
+          "parameters": {
+            "epsilon": "0.01",
+            "data_percentage": "50%"
+          },
+          "metrics": {
+            "precision": 0.85,
+            "recall": 0.80,
+            "accuracy": 0.82,
+            "f1_score": 0.83
+          }
+        },
+        {
+          "parameters": {
+            "epsilon": "0.02",
+            "data_percentage": "70%"
+          },
+          "metrics": {
+            "precision": 0.80,
+            "recall": 0.75,
+            "accuracy": 0.78,
+            "f1_score": 0.79
+          }
+        }
+      ]
+    }
+  },
+  "model_resilience_insights": {
+    "resilience_overview": "The model shows significant resilience to noise but is susceptible to targeted FGSM attacks.",
+    "vulnerabilities": [
+      "Feature X",
+      "Feature Y"
+    ],
+    "strengths": [
+      "Feature A",
+      "Feature B"
+    ]
+  },
+  "feature_sensitivity_analysis": [
+    {
+      "feature": "Edge Detection",
+      "sensitivity_score": 8.5,
+      "impact": "High sensitivity to edges leading to misclassification of similar objects."
+    }
+  ],
+  "mitigation_strategies": {
+    "recommended_actions": [
+      {
+        "strategy": "Adversarial Training",
+        "description": "Retrain the model with adversarial examples to improve robustness."
+      }
+    ]
+  },
+  "compliance_and_regulatory_considerations": {
+    "compliance_risks": [
+      "GDPR Non-compliance",
+      "Data Protection Act violation"
+    ],
+    "recommendations": "Implement strict data encryption and anonymization techniques."
+  },
+  "historical_comparison": {
+    "previous_report_id": "id_of_previous_report",
+    "comparison_outcome": "Model robustness has decreased by 10% since the last report."
+  },
+  "user_impact_assessment": {
+    "potential_exploits": "Adversarial attacks could lead to misclassification, impacting user experience and trust.",
+    "severity": "Moderate"
+  },
+  "summaries": {
+    "technical_summary": "Technical jargon-filled explanation of the report findings.",
+    "layman_summary": "Simplified explanation of the report findings for non-technical stakeholders."
+  },
+  "actionable_next_steps": {
+    "steps": [
+      {
+        "priority": "High",
+        "action": "Immediate adversarial retraining of the model with increased regularization."
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ntp-setup
+  labels:
+    app: ntp-setup
+spec:
+  selector:
+    matchLabels:
+      app: ntp-setup
+  template:
+    metadata:
+      labels:
+        app: ntp-setup
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+      - name: ntpsetup
+        image: "{{ .Values.ntpsetup.image }}"
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true  # Required for some operations like systemctl

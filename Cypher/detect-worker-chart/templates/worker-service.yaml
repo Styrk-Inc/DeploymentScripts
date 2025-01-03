@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: detect-worker
+  # annotations:
+  #   external-dns.alpha.kubernetes.io/hostname: "aitrism-worker"
+  #   service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  # #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "HTTP"
+  # #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8000"
+  # #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/vs/health/" 
+  # #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: /vs/health/
+spec:
+  # type: LoadBalancer
+  ports:
+    # - port: {{ .Values.service.ports.prometheus }}
+    #   name: prometheus-port
+    - port: {{ .Values.service.ports.uvicorn }}
+      name: uvicorn-port
+    # - port: {{ .Values.service.ports.grafana }}
+    #   name: grafana-port
+    - port: {{ .Values.service.ports.rabbitmqManagement }}
+      name: rabbitmq-management-port
+    - port: {{ .Values.service.ports.rabbitmq }}
+      name: rabbitmq-port
+    - port: 5555
+      name: flower
+    - port: 5560
+      name: flower1
+  selector:
+    app: detect

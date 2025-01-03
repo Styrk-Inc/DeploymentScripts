@@ -1,0 +1,22 @@
+apiVersion: v2
+name: aitrism-chart
+description: A Helm chart for Kubernetes
+
+type: application
+
+version: 0.1.0
+appVersion: "1.0"
+
+# aitrism-chart/Chart.yaml
+dependencies:
+  - name: mongodb
+    version: 14.3.2
+    repository: "https://charts.bitnami.com/bitnami"
+  - name: airflow
+    version: "1.13.1"  # specify the desired version of Airflow chart
+    repository: "@apache-airflow"
+  # - name: airflow
+  #   version: "18.3.2"  # specify the latest version of Bitnami Airflow chart
+  #   repository: "https://charts.bitnami.com/bitnami"
+
+

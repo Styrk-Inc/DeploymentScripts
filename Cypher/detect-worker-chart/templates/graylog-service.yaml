@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  selector:
+    app: mongo
+  ports:
+  - name: mongo-port
+    protocol: TCP
+    port: 27017
+    targetPort: 27017
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+spec:
+  selector:
+    app: elasticsearch
+  ports:
+  - name: http
+    protocol: TCP
+    port: 9200
+    targetPort: 9200
+  - name: transport
+    protocol: TCP
+    port: 9300
+    targetPort: 9300
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graylog
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: "graylog"
+    # service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-0fa9140ae549044cc,eipalloc-09728c2956979c7d4
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  selector:
+    app: graylog
+  ports:
+  - name: http
+    port: 9000
+    targetPort: 9000
+  - name: udp-input
+    port: 12201
+    targetPort: 12201
+  - name: tcp-input
+    port: 1514
+    targetPort: 1514
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+  - name: http-es
+    port: 9200
+    targetPort: 9200
+  - name: https-es
+    port: 9300
+    targetPort: 9300

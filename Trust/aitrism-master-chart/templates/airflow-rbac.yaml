@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: default  # Update the namespace if your Airflow components are in a different namespace
+  name: airflow-pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]  # Add additional verbs if needed
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: default  # Update the namespace if your Airflow components are in a different namespace
+  name: airflow-scheduler-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: airflow-pod-reader  # Reference the Role created above
+subjects:
+- kind: ServiceAccount
+  name: aitrism-airflow-scheduler  # Name of your Airflow scheduler service account

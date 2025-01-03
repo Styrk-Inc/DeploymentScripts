@@ -1,0 +1,29 @@
+groups:
+- name: node_rules
+  rules:
+  - alert: HighCPUUsage
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage on {{ $labels.instance }}"
+      description: "CPU usage is above 80% for more than 2 minutes on {{ $labels.instance }}."
+
+  - alert: HighMemoryUsage
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 20
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Memory usage on {{ $labels.instance }}"
+      description: "Memory usage is above 80% for more than 2 minutes on {{ $labels.instance }}."
+  
+  - alert: ApplicationDown
+    expr: up{job="detect-worker"} == 0 
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Application down on {{ $labels.instance }}"
+      description: "Application is down for more than 5 minutes on {{ $labels.instance }}."

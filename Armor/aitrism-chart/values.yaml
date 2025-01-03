@@ -1,0 +1,82 @@
+replicaCount: 1
+fullnameOverride: ""
+
+imagePullSecrets:
+  - name: regcred3
+
+env:
+  BROKER_URI: "amqp://guest:guest@localhost:5672/"
+  BACKEND_URI: "redis://localhost:6379/0"
+
+service:
+  type: ClusterIP
+  ports:
+    prometheus: 9090
+    uvicorn: 8000
+    grafana: 3000
+    rabbitmqManagement: 15672
+    rabbitmq: 5672
+
+fastapi:
+  image: "975757560751.dkr.ecr.us-east-1.amazonaws.com/aitrism:web"
+  port: 8000
+
+celeryWorker:
+  image: "975757560751.dkr.ecr.us-east-1.amazonaws.com/aitrism:worker"
+  workingDir: "/app"
+
+
+prometheus:
+  image: "prom/prometheus"
+  configVolumeName: "prometheus-config-volume"
+  ports:
+    containerPort: 9090
+
+
+grafana:
+  image: "grafana/grafana"
+  port: 3000
+  nodePort: 31000  # Default NodePort for Grafana, change if needed
+
+rabbitmq:
+  image: "rabbitmq:3-management"
+  env:
+    erlangCookie: "SWQOKODSQALRPCLNMEQG"
+    defaultUser: "guest"
+    defaultPass: "guest"
+    defaultVhost: "/"
+    BROKER_URI: "amqp://guest:guest@localhost:5672/"
+  ports:
+    management: 15672
+    amqp: 5672
+
+redis:
+  image: "redis:7.2.3"
+  ports:
+    redis: 6379
+  env:
+    BROKER_URI: "amqp://guest:guest@localhost:5672/"
+    BACKEND_URI: "redis://localhost:6379/0"
+
+kafka:
+  replicaCount: 1
+  image: confluentinc/cp-kafka:latest
+  ports:
+    containerPort: 9092
+    internalPort: 31092
+  env:
+    brokerId: "1"
+    zookeeperConnect: "zookeeper-service:2181"
+    listenerSecurityProtocolMap: "LISTENER_INTERNAL:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    interBrokerListenerName: "LISTENER_INTERNAL"
+    offsetsTopicReplicationFactor: "1"
+  imagePullSecrets: regcred3
+
+zookeeper:
+  image: zookeeper:3.7.2
+  replicaCount: 1
+  ports:
+    client: 2181
+  env:
+    clientPort: 2181
+    tickTime: 2000

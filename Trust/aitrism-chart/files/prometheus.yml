@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s  # Adjust the scrape interval as needed
+
+scrape_configs:
+  # Scrape configuration for the aitrism-service
+  - job_name: 'aitrism-service'
+    static_configs:
+      - targets: [ 'localhost:8000' ]

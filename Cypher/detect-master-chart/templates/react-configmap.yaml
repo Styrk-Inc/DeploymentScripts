@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: react-config
+data:
+  CONFIG_JS: |
+    window._env_ = {
+      REACT_APP_BACKEND_API_ENDPOINT: "http://{{ .Values.env.DETECT_MASTER_DNS }}:8000/",
+    }
+
+

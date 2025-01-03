@@ -1,0 +1,46 @@
+{
+  "attack_profiles": [
+    {
+      "attack_type": "FGSM",
+      "description": "Fast Gradient Sign Method, which creates adversarial examples.",
+      "parameter_combinations": [
+        {
+          "epsilon": "0.01",
+          "data_percentage": "50%"
+        },
+        {
+          "epsilon": "0.02",
+          "data_percentage": "70%"
+        }
+      ]
+    },
+    {
+      "attack_type": "IFGSM",
+      "description": "Iterative Fast Gradient Sign Method, an iterative version of FGSM.",
+      "parameter_combinations": [
+        {
+          "epsilon": "0.01",
+          "data_percentage": "60%"
+        },
+        {
+          "epsilon": "0.03",
+          "data_percentage": "80%"
+        }
+      ]
+    },
+    {
+      "attack_type": "MIFGSM",
+      "description": "Momentum Iterative Fast Gradient Sign Method, an advanced variant of IFGSM.",
+      "parameter_combinations": [
+        {
+          "epsilon": "0.01",
+          "data_percentage": "40%"
+        },
+        {
+          "epsilon": "0.05",
+          "data_percentage": "90%"
+        }
+      ]
+    }
+  ]
+}

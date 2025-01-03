@@ -1,0 +1,401 @@
+replicaCount: 1
+fullnameOverride: ""
+
+imagePullSecrets:
+  - name: regcred3
+
+imagePullPolicy: "Always"
+
+
+env:
+  #BROKER_URI: "amqp://aitrism:aitrism@aitrism:5672"
+  #BACKEND_URI: "redis://aitrism:6379/0"
+  AITRISM_MASTER_DNS: "34.192.217.116"
+
+service:
+  type: ClusterIP
+  ports:
+    prometheus: 9090
+    uvicorn: 8000
+    grafana: 3000
+    rabbitmqManagement: 15672
+    rabbitmq: 5672
+
+fastapi:
+  image_web: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:web"
+#  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/aitrism:web"
+  port: 8000
+
+celeryWorker:
+  image_worker: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:worker"
+#  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/aitrism:worker"
+  workingDir: "/app"
+
+ntpsetup:
+  image_ntp: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:deamonset"
+  
+# prometheus:
+#   image: "prom/prometheus:v2.24.0"
+#   configVolumeName: "prometheus-config-volume"
+#   ports:
+#     containerPort: 9090
+
+prometheus:
+  image: "prom/prometheus:v2.24.0"
+  configVolumeName: "prometheus-config-volume"
+  ports:
+    containerPort: 9090
+
+  # server:
+  #   extraArgs:
+  #     - --web.config.file=/etc/prometheus/web-config/web-config.yaml
+
+  # extraConfigmapMounts:
+  # - name: prometheus-config
+  #   mountPath: /etc/prometheus
+  #   configMap: prometheus-config
+  #   subPath: prometheus.yml
+  #   readOnly: true
+
+  # - name: web-config
+  #   mountPath: /etc/prometheus/web-config
+  #   configMap: prometheus-config
+  #   subPath: web-config.yml
+  #   readOnly: true
+
+  # extraVolumeMounts:
+  # - name: tls-secret
+  #   mountPath: /etc/prometheus/certs
+  #   secret:
+  #     secretName: prometheus-tls
+
+  extraArgs:
+    - '--web.config.file=/etc/prometheus/web-config.yml'
+
+  # extraVolumes:
+  #   # - name: web-config
+  #   #   configMap:
+  #   #     name: prometheus-config
+  #   - name: tls-secret
+  #     secret:
+  #       secretName: prometheus-tls
+
+  extraVolumeMounts:
+    - name: web-config
+      mountPath: /etc/prometheus/web-config.yml
+      subPath: web-config.yml
+    - name: tls-secret
+      mountPath: /etc/prometheus/certs
+
+
+grafana:
+  image: "grafana/grafana"
+  port: 3000
+  nodePort: 31000  # Default NodePort for Grafana, change if needed
+  env:
+    GF_SECURITY_ADMIN_USER: "Styrk"
+    GF_SECURITY_ADMIN_PASSWORD: "Styrk@2024"
+
+
+rabbitmq:
+  image: "rabbitmq:3-management"
+  env:
+    erlangCookie: "SWQOKODSQALRPCLNMEQG"
+    defaultUser: "aitrism"
+    defaultPass: "aitrism"
+    defaultVhost: "/"
+    BROKER_URI: "amqp://aitrism:aitrism@aitrism:5672"
+  ports:
+    management: 15672
+    amqp: 5672
+
+redis:
+  image: "redis:7.2.3"
+  ports:
+    redis: 6379
+  env:
+    #    BROKER_URI: "amqp://guest:guest@localhost:5672/"
+    BACKEND_URI: "redis://aitrism:6379/0"
+  persistence:
+      enabled: true
+      existingClaim: redis-db-aitrism-redis-0
+      subPath: "redis"
+      accessMode: ReadWriteOnce
+      size: 2Gi
+ 
+
+kafka:
+  replicaCount: 1
+  image: confluentinc/cp-kafka:latest
+  bootstrap_server: "44.219.90.97"
+  ports:
+    containerPort: 9092
+    internalPort: 31092
+  env:
+    brokerId: "1"
+    zookeeperConnect: "zookeeper-service:2181"
+    listenerSecurityProtocolMap: "LISTENER_INTERNAL:PLAINTEXT,LISTENER_EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    interBrokerListenerName: "LISTENER_INTERNAL"
+    offsetsTopicReplicationFactor: "1"
+  imagePullSecrets: regcred3
+
+zookeeper:
+  image: zookeeper:3.7.2
+  replicaCount: 1
+  ports:
+    client: 2181
+  env:
+    clientPort: 2181
+    tickTime: 2000
+
+#ingress:
+#  enabled: true
+#  annotations:
+#    kubernetes.io/ingress.class: alb
+#    alb.ingress.kubernetes.io/scheme: internet-facing
+#    # Other AWS specific annotations...
+#  hosts:
+#    - host: sitaraman-4-eks-nlb-d624c95aafc319b6.elb.us-east-1.amazonaws.com
+#      paths:
+#        - path: /
+#          pathType: ImplementationSpecific
+#          backend:
+#            service:
+#              name: aitrism-aitrism-chart
+#              port:
+#                number: 8000
+
+mongodb:
+  global:
+    storageClass: ebs-csi-sc
+  #architecture: replicaset
+  useStatefulSet: true
+  persistence:
+    enabled: true
+    #existingClaim: datadir-aitrism1-mongodb-0
+    storageClass: ebs-csi-sc
+  persistentVolumeClaimRetentionPolicy:
+    ## @param persistentVolumeClaimRetentionPolicy.enabled Enable Persistent volume retention policy for MongoDB(&reg;) Statefulset
+    ##
+    enabled: true
+    ## @param persistentVolumeClaimRetentionPolicy.whenScaled Volume retention behavior when the replica count of the StatefulSet is reduced
+    ##
+    whenScaled: Retain
+    ## @param persistentVolumeClaimRetentionPolicy.whenDeleted Volume retention behavior that applies when the StatefulSet is deleted
+    ##
+    whenDeleted: Retain
+  service:
+    #nameOverride: aitrism1-mongodb
+    mongodb_service_name: mongodb://admin:admin@aitrism-mongodb/aitrism-db
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  ports:
+    mongo: 27017
+  auth:
+    rootPassword: admin
+    username: "admin"
+    password: "admin"
+    database: "aitrism-db"
+    usernames: [ "admin" ]
+    passwords: [ "admin" ]
+    databases: [ aitrism-db ]
+  bindIP: "0.0.0.0"
+kafka_consumer:
+  image_kafka: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:kafka_consumer"
+    #repository: 637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan
+    #repository: 637423168201.dkr.ecr.us-east-1.amazonaws.com/aitrism 
+  pullPolicy: "Always"
+    # Overrides the image tag whose default is the chart appVersion.
+    #tag: "kafka_consumer"
+
+nameOverride: ""
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: { }
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: { }
+
+securityContext: { }
+  # fsGroup: 2000
+  # runAsUser: 1000
+# runAsGroup: 3000
+
+resources: { }
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+#   memory: 128Mi
+
+nodeSelector: { }
+
+tolerations: [ ]
+
+affinity: { }
+
+persistence:
+  enabled: true
+  storageClass: local-storage
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  createPvc: false
+
+backup:
+  cronjob:
+    storage:
+      existingClaim: mongodb-backup-ebs-csi
+node_names:
+  values:
+    node1: ip-10-0-1-73.ec2.internal
+    node2: ip-10-0-2-234.ec2.internal
+
+storage_classes:
+  local: local-storage
+  ebs: ebs-sc
+  ebs_csi: ebs-csi-sc
+persistent_volumes:
+  local: local
+  ebs_csi: aws-ebs-csi-pv
+persistent_volume_claims:
+  mongodb: mongodb-pvc
+  mongodb_backup: mongodb-backup-ebs-csi
+
+#UI-Image
+frontend:
+  image_frontend: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:UI"
+
+#Airflow Values.yaml file
+
+airflow:
+  dags:
+    persistence:
+      enabled: true
+      storageClassName: ebs-csi-sc # Optional, depending on your cluster setup
+      accessMode: ReadWriteOnce
+      size: 1Gi
+
+  config:
+    core:
+      dags_folder: "/opt/airflow/dags"
+      # sql_alchemy_conn: "postgresql+psycopg2://styrk:Styrk121@aitrism-postgresql:5432/airflow"
+    webserver:
+      expose_config: 'True'  # by default this is 'False'
+    api:
+      auth_backends: airflow.api.auth.backend.basic_auth
+
+  webserver:
+    service:
+      type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    extraInitContainers:
+      - name: create-user
+        image: "apache/airflow:2.1.2" # Use the appropriate Airflow image version
+        command: ["bash", "-c"]
+        args:
+          - |
+            airflow users create \
+              --username Styrk \
+              --firstname Styrk \
+              --lastname admin \
+              --role Admin \
+              --email Styrk@styrk.com \
+              --password Styrk@2024
+
+    env:
+      - name: AIRFLOW__WEBSERVER__AUTHENTICATE
+        value: "True"
+      - name: AIRFLOW__WEBSERVER__AUTH_BACKEND
+        value: "airflow.contrib.auth.backends.password_auth"
+      - name: AIRFLOW__CORE__EXECUTOR
+        value: "LocalExecutor"
+      # - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+      #   value: "sqlite:////usr/local/airflow/airflow.db"
+      - name: AIRFLOW__WEBSERVER__ENABLE_PROXY_FIX
+        value: "True"
+      # - name: AIRFLOW__WEBSERVER__SECRET_KEY
+      #   value: "random_secret_key"
+
+  # postgresql:
+  #   enabled: true
+  #   postgresUser: styrk
+  #   postgresPassword: Styrk121
+
+
+  scheduler:
+    startupProbe:
+      failureThreshold: 6
+      periodSeconds: 300
+      timeoutSeconds: 20
+      command: ~
+    extraInitContainers:
+      - name: copy-dags
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:kafka_consumer"
+        command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
+        volumeMounts:
+          - name: dags
+            mountPath: /opt/airflow/dags
+      # - name: create-user
+      #   image: "apache/airflow:2.1.2" # Use the appropriate Airflow image version
+      #   command: ["bash", "-c"]
+      #   args:
+      #     - |
+      #       airflow users create \
+      #         --username Styrk \
+      #         --firstname Styrk \
+      #         --lastname admin \
+      #         --role Admin \
+      #         --email Styrk@styrk.com \
+      #         --password Styrk@2024
+        # env:
+        # - name: AIRFLOW__CORE__EXECUTOR
+        #   value: "LocalExecutor"
+        # - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+        #   value: "postgresql+psycopg2://styrk:Styrk121@aitrism-postgresql:5432/airflow"
+        # - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+        #   value: "sqlite:////usr/local/airflow/airflow.db"
+        volumeMounts:
+          - name: dags
+            mountPath: /opt/airflow/dags
+
+  workers:
+    persistence:
+      enabled: true
+      size: 1Gi
+    extraInitContainers:
+      - name: copy-dags
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:kafka_consumer"
+        command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
+        volumeMounts:
+          - name: dags
+            mountPath: /opt/airflow/dags
+
+  triggerer:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+  dagProcessor:
+    extraInitContainers:
+      - name: copy-dags
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:kafka_consumer"
+        command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
+        volumeMounts:
+          - name: aitrism-dags
+            mountPath: /opt/airflow/dags
+
+  logs:
+    persistence:
+      enabled: false
+      size: 1Gi
+      annotations: { }
+      storageClassName:
+      existingClaim:
