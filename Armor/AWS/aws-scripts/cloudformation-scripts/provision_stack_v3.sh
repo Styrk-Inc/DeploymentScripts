@@ -1,5 +1,5 @@
 #!/bin/bash
-source config.sh
+source user-config.sh
 
 #Creating Master Cluster
 # Create stack

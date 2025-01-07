@@ -1,5 +1,5 @@
 #!/bin/bash
-source portal-config.sh
+source user-config.sh
 
 # Creating Portal Instance
 # Create stack
