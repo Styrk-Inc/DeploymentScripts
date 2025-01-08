@@ -518,7 +518,8 @@ Resources:
           docker swarm init
 
           # Deploy the Stack Using Docker Swarm
-          docker stack rm llm_stack
+          # docker stack deploy -c docker-compose.yml private_gpt_stack
+          docker-compose up -d
 
 
 
