@@ -52,9 +52,9 @@ Parameters:
     Type: String
     Default: 10.1.4.0/24
 
-WorkerInstanceAMIType:
-    Description: AMI Type [Ex- AL2_x86_64_GPU (for GPU) & AL2_x86_64 (For CPU)]
-    Type: String
+  WorkerInstanceAMIType:
+      Description: AMI Type [Ex- AL2_x86_64_GPU (for GPU) & AL2_x86_64 (For CPU)]
+      Type: String
 
 Resources:
   # The virtual private cloud to run the ECS environment
