@@ -431,6 +431,7 @@ aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS
 ############################################################################
 
 helm dependency build ./aitrism-master-chart/
+helm repo add apache-airflow https://airflow.apache.org
 helm install aitrism ./aitrism-master-chart/
 
 # docker-compose run airflow-webserver airflow db upgrade

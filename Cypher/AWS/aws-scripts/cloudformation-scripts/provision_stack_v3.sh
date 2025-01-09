@@ -35,6 +35,16 @@ else
     exit 1
 fi
 
+# Define the path to the values.yaml file to update Cognito Envs
+values_path="../../detect-master-chart/values.yaml"
+
+# Step 3: Use sed to replace the values in values.yaml
+sed -i "s|COGNITO_CLIENT_ID: .*|COGNITO_CLIENT_ID: \"$COGNITO_CLIENT_ID\"|" $values_path
+sed -i "s|COGNITO_USER_POOL_ID: .*|COGNITO_USER_POOL_ID: \"$COGNITO_USER_POOL_ID\"|" $values_path
+sed -i "s|COGNITO_REGION: .*|COGNITO_REGION: \"$COGNITO_REGION\"|" $values_path
+sed -i "s|ADMIN_USER: .*|ADMIN_USER: \"$ADMIN_USER\"|" $values_path
+
+echo "Updated values.yaml with the new values from user-config.sh."
 
 #************************************************************#
 #Deploying the Application

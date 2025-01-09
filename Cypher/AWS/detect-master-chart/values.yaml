@@ -27,10 +27,10 @@ fastapi:
     AIRFLOW_USER: "admin" 
     AIRFLOW_PASSWORD: "admin"
     AIRFLOW_SERVER_URL: "http://detect-webserver:8080"
-    COGNITO_CLIENT_ID: "5dgd5838sj1hufc3dbgh6b8u7d"
-    COGNITO_USER_POOL_ID: "us-east-1_hxo59fm71"
+    COGNITO_CLIENT_ID: "pass-cognito-client-id"
+    COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
     COGNITO_REGION: "us-east-1"
-    ADMIN_USER: "admin"
+    ADMIN_USER: "user@domain.com"
     GRAYLOG_HOST: "graylog"
     GRAYLOG_PORT: "12201"
     APP_TYPE: "fastapi"
@@ -103,7 +103,7 @@ grafana:
   port: 3000
   nodePort: 31000  # Default NodePort for Grafana, change if needed
   env:
-    GF_SECURITY_ADMIN_USER: "Styrk"
+    GF_SECURITY_ADMIN_USER: "user@domain.com"
     GF_SECURITY_ADMIN_PASSWORD: "Styrk@2024"
 
 
