@@ -44,14 +44,17 @@ secret_name="Defend-Secret-infra"                   # Secret Name
 region_name="us-east-1"                             # AWS Region for Secrets Manager
 source_account_id="637423168201"                    # AWS Account ID
 role_name="Defend_Secret_Role"                      # Role Name for Secret Access
-k8s_secret_name="aitrism-aws"                       # Kubernetes Secret Name
-namespace="default"                                 # Kubernetes Namespace
+
 
 
 
 # ===============================
 # Leave These Fields Unchanged (Do Not Edit)
 # ===============================
+
+#Secret Manager Parameters.
+k8s_secret_name="aitrism-aws"                       # Kubernetes Secret Name
+namespace="default"                                 # Kubernetes Namespace
 
 # Variables for Master
 AWS_ACCOUNT_ID_MASTER="637423168201"

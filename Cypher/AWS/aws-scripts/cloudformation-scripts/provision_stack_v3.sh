@@ -50,10 +50,12 @@ echo "Updated values.yaml with the new values from user-config.sh."
 python_script_path="../secret-creation.py"
 
 # Update values in the Python script using `sed`
-sed -i "s/secret_name = .*/secret_name = \"$secret_name\"/" "$python_script_path"
-sed -i "s/region_name = .*/region_name = \"$region_name\"/" "$python_script_path"
-sed -i "s/source_account_id = .*/source_account_id = \"$source_account_id\"/" "$python_script_path"
-sed -i "s/role_name = .*/role_name = \"$role_name\"/" "$python_script_path"
+sed -i "s|secret_name = .*|secret_name = \"$secret_name\"|" "$python_script_path"
+sed -i "s|region_name = .*|region_name = \"$region_name\"|" "$python_script_path"
+sed -i "s|source_account_id = .*|source_account_id = \"$source_account_id\"|" "$python_script_path"
+sed -i "s|role_name = .*|role_name = \"$role_name\"|" "$python_script_path"
+sed -i "s|k8s_secret_name = .*|k8s_secret_name = \"$k8s_secret_name\"|" "$python_script_path"
+sed -i "s|namespace = .*|namespace = \"$namespace\"|" "$python_script_path"
 
 echo "Python script updated with values from user-config.sh."
 
