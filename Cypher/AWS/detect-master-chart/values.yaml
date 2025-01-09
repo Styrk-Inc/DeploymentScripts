@@ -30,7 +30,7 @@ fastapi:
     COGNITO_CLIENT_ID: "pass-cognito-client-id"
     COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
     COGNITO_REGION: "us-east-1"
-    ADMIN_USER: "user@domain.com"
+    NEW_USERNAME: "user@domain.com"
     GRAYLOG_HOST: "graylog"
     GRAYLOG_PORT: "12201"
     APP_TYPE: "fastapi"
