@@ -45,7 +45,10 @@ region_name="us-east-1"                             # AWS Region for Secrets Man
 source_account_id="637423168201"                    # AWS Account ID
 role_name="Defend_Secret_Role"                      # Role Name for Secret Access
 
-
+# Cross-Account ECR Access Setup
+ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"     # Replace <SOURCE_ACCOUNT_ID> and <ROLE_NAME>
+ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"                    # Replace session_name with any desired value (temporary)
+ECR_ROLE_EXTERNAL_ID="external-id-12345"                        # Replace <ECR_ROLE_EXTERNAL_ID> with the provider's external ID
 
 
 # ===============================

@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Provision LLM_Guard Environment in Private Subnet and access it using ALB.
 
-
 Parameters:
   SSHKeyname:
     Description: SSH key to Access instance
