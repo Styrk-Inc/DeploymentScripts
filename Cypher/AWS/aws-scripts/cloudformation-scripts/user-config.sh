@@ -36,7 +36,7 @@ WorkerInstanceAMIType="AL2_x86_64_GPU"           #For GPU Machine use this archi
 COGNITO_CLIENT_ID="pass-cognito-client-id"          # Update Cognito Client ID
 COGNITO_USER_POOL_ID="pass-cognito-user-pool-id"    # Update Cognito User Pool ID
 COGNITO_REGION="us-east-1"                          # Update Cognito Region
-ADMIN_USER="user@domain.com"                        # Provide First User name
+NEW_USERNAME="user@domain.com"                        # Provide First User name
 
 
 #Secret Manager Parameters.
