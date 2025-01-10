@@ -42,11 +42,11 @@ celeryWorker:
   replicaCount: 1
   resources:
     requests:
-      cpu: "30720m"   # Requesting n CPU core
-      memory: "65536Mi"  # Adjusted the memory request
+      cpu: "12288m"   # Requesting n CPU core
+      memory: "57344Mi"  # Adjusted the memory request
     limits:
-      cpu: "32768m"   # Limiting the CPU core
-      memory: "67584Mi"
+      cpu: "14336m"   # Limiting the CPU core
+      memory: "61440Mi"   # Limiting the memory limit
   autoscaling:
     enabled: true
     minReplicas: 2

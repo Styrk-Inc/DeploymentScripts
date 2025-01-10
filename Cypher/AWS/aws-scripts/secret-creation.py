@@ -28,7 +28,8 @@ def get_secret_value(secret_name, region_name, source_account_id, role_name):
         if 'SecretString' in response:
             secret_string = response['SecretString']
             secret_json = json.loads(secret_string)
-            return {key: value.encode("utf-8") for key, value in secret_json.items()}
+            # Ensure all keys and values are properly formatted (no spaces or invalid characters)
+            return {key.strip().replace(" ", "_"): value.encode("utf-8") for key, value in secret_json.items()}
         else:
             print("Secret binary is not supported.")
             return None
@@ -64,6 +65,7 @@ if secret_data:
 
     # Create new Kubernetes secret
     metadata = {"name": k8s_secret_name}
+    # Ensure all keys are valid (no invalid characters or spaces)
     data = {key: base64.b64encode(value).decode("utf-8") for key, value in secret_data.items()}
     body = {"apiVersion": "v1", "kind": "Secret", "metadata": metadata, "data": data}
     try:
@@ -73,5 +75,3 @@ if secret_data:
         print(f"Error creating Kubernetes secret: {e}")
 else:
     print("Failed to retrieve secret value.")
-
-

@@ -85,32 +85,78 @@ kubectl create configmap rabbitmq-advanced-config --from-file=advanced.config=./
 # python3 secret-creation.py
 python3 aws-scripts/secret-creation.py
 
-# Variables
+# Variables For ECR Access
 ECR_ROLE_ARN=$ECR_ROLE_ARN  
 ECR_ROLE_SESSION_NAME=$ECR_ROLE_SESSION_NAME
 ECR_ROLE_EXTERNAL_ID=$ECR_ROLE_EXTERNAL_ID
 
-# Assume role
-assume_role() {
-    echo "Assuming role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
+# Function to assume ECR role and export temporary credentials
+assume_ecr_role() {
+    echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
     ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$MASTER_REGION")
 
     if [ $? -ne 0 ]; then
-        echo "Error assuming role. Exiting."
+        echo "Error assuming ECR role. Exiting."
         exit 1
     fi
 
     export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
     export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
     export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
-    echo "Temporary credentials set for this session."
+
+    echo "Temporary credentials for ECR set for this session."
 }
 
-# Authenticate with ECR
-assume_role
+# Function to authenticate with ECR and store the Docker login token
+store_ecr_token() {
+    echo "Logging in to AWS ECR..."
+    TOKEN=$(aws ecr get-login-password --region "$MASTER_REGION")
+    echo "ECR login token stored temporarily."
+}
 
-echo "Logging in to AWS ECR..."
-aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
+# Function to create Kubernetes secret for Docker registry
+create_k8s_secret() {
+    # Verify Kubernetes cluster access
+    echo "Verifying Kubernetes cluster access..."
+    kubectl get nodes || { echo "Error: Unable to access Kubernetes cluster."; exit 1; }
+    kubectl get pods
+
+    # Update Kubernetes secret for Docker registry
+    echo "Updating Kubernetes secret for Docker registry..."
+    kubectl delete secret regcred --ignore-not-found
+    kubectl create secret docker-registry regcred \
+        --docker-server="$ECR_URI_MASTER" \
+        --docker-username=AWS \
+        --docker-password="$TOKEN"
+
+    echo "Kubernetes secret created successfully."
+}
+
+# Function to clear temporary credentials
+clear_ecr_credentials() {
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+    echo "Temporary credentials cleared."
+}
+
+# Main script
+# Step 1: Assume the ECR role and set temporary credentials
+assume_ecr_role
+
+# Step 2: Authenticate with ECR and store the Docker login token
+store_ecr_token
+
+# Step 3: Clear the temporary credentials
+clear_ecr_credentials
+
+# Step 4: Create the Kubernetes secret for Docker registry
+create_k8s_secret
+
+echo "k8s secret created using ECR cross account"
+
+# echo "Logging in to AWS ECR..."
+# aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
 
 # echo "Getting SSL Certificate & Key from Secret Manager..."
 # python3 aws-scripts/ssl-secret.py  #Python3 should be installed before this step
@@ -124,18 +170,25 @@ aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS
 #     --cluster $MASTER_STACK_NAME-Cluster \
 #     --key-arn $Master_KMS_KEY_ARN
 
-# Delete the old Kubernetes secret (if exists) and create a new one
-echo "Updating Kubernetes secret for Docker registry..."
-kubectl delete secret regcred --ignore-not-found
-TOKEN=$(aws ecr get-login-password --region $MASTER_REGION)
-kubectl create secret docker-registry regcred --docker-server=$ECR_URI_MASTER --docker-username=AWS --docker-password=$TOKEN
+# # Delete the old Kubernetes secret (if exists) and create a new one
+# echo "Updating Kubernetes secret for Docker registry..."
+# kubectl delete secret regcred --ignore-not-found
+# TOKEN=$(aws ecr get-login-password --region $MASTER_REGION)
+# kubectl create secret docker-registry regcred --docker-server=$ECR_URI_MASTER --docker-username=AWS --docker-password=$TOKEN
+
+# # Cleanup
+# unset AWS_ACCESS_KEY_ID
+# unset AWS_SECRET_ACCESS_KEY
+# unset AWS_SESSION_TOKEN
+# echo "Temporary credentials cleared. Script completed."
+
 echo "Current working directory:"
 pwd
 
 #Creating configmap for Airflow
 kubectl create configmap airflow-dags-configmap --from-file=airflow/dags/schedule_job.py
 # Create configmap for graylog
-kubectl create configmap graylog-script --from-file=backend_model/loggers/graylog.sh
+kubectl create configmap graylog-script --from-file=conf/graylog.sh
 ############################Elastic ip creation#############################
 
 # Array of names (tags) for the Elastic IPs you're managing
@@ -564,9 +617,9 @@ echo "Prometheus configuration updated with new worker IP: ${ip_address_Worker_N
 #Installing Matric-server in the Master Cluster.
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
-# Install aitrism-worker
-echo "Logging in to AWS ECR..."
-aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
+# # Install aitrism-worker
+# echo "Logging in to AWS ECR..."
+# aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
 
 
 
@@ -588,8 +641,8 @@ fi
 
 ####################################### Testing for Domain ####################################################
 
-echo "Logging in to AWS ECR..."
-aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
+# echo "Logging in to AWS ECR..."
+# aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
 # Define the path to your values.yaml file
 # values_path="./aws-scripts/cloudformation-scripts/config.sh"
 
@@ -635,10 +688,15 @@ aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS
 # -H "Content-Type: application/json" \
 # -d "[{\"data\": \"$IP_Greylog\", \"ttl\": 600}]"
 
-echo "All domain Setup Successfully"
+# echo "All domain Setup Successfully"
 
 ###################################################################################################################
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+# Add the Apache Airflow Helm repo
+helm repo add apache-airflow https://airflow.apache.org
+helm repo add bitnami https://charts.bitnami.com/bitnami
+# Update the Helm repositories
 helm repo update
 helm install node-exporter prometheus-community/prometheus-node-exporter
 helm dependency build ./detect-master-chart/
@@ -652,25 +710,92 @@ kubectl config use-context detect-worker
 kubectl create configmap rabbitmq-config --from-file=conf/rabbitmq.conf
 kubectl create configmap rabbitmq-advanced-config --from-file=conf/advanced.config
 # Create configmap for graylog
-kubectl create configmap graylog-script --from-file=backend_model/loggers/graylog.sh
+kubectl create configmap graylog-script --from-file=conf/graylog.sh
 kubectl create namespace monitoring
-echo "Logging in to AWS ECR..."
-aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_WORKER.dkr.ecr.$MASTER_REGION.amazonaws.com
-#kubectl create configmap rabbitmq-advanced-config --from-file=conf/advanced.config
+
 #echo "Create aitrism-aws Secret to get AWS Secret Manager Values"
 # python3 secret-creation.py
 python3 aws-scripts/secret-creation.py
+
+# Function to assume ECR role and export temporary credentials
+assume_ecr_role() {
+    echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
+    ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$MASTER_REGION")
+
+    if [ $? -ne 0 ]; then
+        echo "Error assuming ECR role. Exiting."
+        exit 1
+    fi
+
+    export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
+    export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
+    export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
+
+    echo "Temporary credentials for ECR set for this session."
+}
+
+# Function to authenticate with ECR and store the Docker login token
+store_ecr_token() {
+    echo "Logging in to AWS ECR..."
+    TOKEN=$(aws ecr get-login-password --region "$MASTER_REGION")
+    echo "ECR login token stored temporarily."
+}
+
+# Function to create Kubernetes secret for Docker registry
+create_k8s_secret() {
+    # Verify Kubernetes cluster access
+    echo "Verifying Kubernetes cluster access..."
+    kubectl get nodes || { echo "Error: Unable to access Kubernetes cluster."; exit 1; }
+    kubectl get pods
+
+    # Update Kubernetes secret for Docker registry
+    echo "Updating Kubernetes secret for Docker registry..."
+    kubectl delete secret regcred --ignore-not-found
+    kubectl create secret docker-registry regcred \
+        --docker-server="$ECR_URI_MASTER" \
+        --docker-username=AWS \
+        --docker-password="$TOKEN"
+
+    echo "Kubernetes secret created successfully."
+}
+
+# Function to clear temporary credentials
+clear_ecr_credentials() {
+    unset AWS_ACCESS_KEY_ID
+    unset AWS_SECRET_ACCESS_KEY
+    unset AWS_SESSION_TOKEN
+    echo "Temporary credentialscript completed successfully cleared."
+}
+
+# Main script
+# Step 1: Assume the ECR role and set temporary credentials
+assume_ecr_role
+
+# Step 2: Authenticate with ECR and store the Docker login token
+store_ecr_token
+
+# Step 3: Clear the temporary credentials
+clear_ecr_credentials
+
+# Step 4: Create the Kubernetes secret for Docker registry
+create_k8s_secret
+
+echo "ECR Access Role Script completed successfully for worker."
+
+# echo "Logging in to AWS ECR..."
+# aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_WORKER.dkr.ecr.$MASTER_REGION.amazonaws.com
+# #kubectl create configmap rabbitmq-advanced-config --from-file=conf/advanced.config
 
 # echo "Enabling KMS Encryption on the Cluster..."
 # eksctl utils enable-secrets-encryption \
 #     --cluster $WORKER_STACK_NAME-Cluster \
 #     --key-arn $Worker_KMS_KEY_ARN
     
-# Delete the old Kubernetes secret (if exists) and create a new one
-echo "Updating Kubernetes secret for Docker registry..."
-kubectl delete secret regcred --ignore-not-found
-TOKEN=$(aws ecr get-login-password --region $WORKER_REGION )
-kubectl create secret docker-registry regcred --docker-server=$ECR_URI_WORKER --docker-username=AWS --docker-password=$TOKEN
+# # Delete the old Kubernetes secret (if exists) and create a new one
+# echo "Updating Kubernetes secret for Docker registry..."
+# kubectl delete secret regcred --ignore-not-found
+# TOKEN=$(aws ecr get-login-password --region $WORKER_REGION )
+# kubectl create secret docker-registry regcred --docker-server=$ECR_URI_WORKER --docker-username=AWS --docker-password=$TOKEN
 
 # Check if the worker installation already exists
 WORKER_INSTALLATION=$(helm list -q -f detect-worker)
@@ -735,15 +860,8 @@ fi
 echo "Installing Nvidia Driver Toolkit for GPU"
 kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.16.1/deployments/static/nvidia-device-plugin.yml
 helm install detect-worker detect-worker-chart/
-# Restart detect-fastapi deployment
-kubectl rollout restart deployment detect-fastapi --kubeconfig master-kubeconfig.yaml 
-echo "detect-fastapi deployment restarted"
+# # Restart detect-fastapi deployment
+# kubectl rollout restart deployment detect-fastapi --kubeconfig master-kubeconfig.yaml 
+# echo "detect-fastapi deployment restarted"
 # echo "Setup completed!"
 echo "Deployment and configuration completed."
-
-
-# Cleanup
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
-unset AWS_SESSION_TOKEN
-echo "Temporary credentials cleared. Script completed."
