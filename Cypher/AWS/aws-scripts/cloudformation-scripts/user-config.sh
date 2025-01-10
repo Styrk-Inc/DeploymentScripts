@@ -61,14 +61,14 @@ namespace="default"                                 # Kubernetes Namespace
 
 # Variables for Master
 AWS_ACCOUNT_ID_MASTER="637423168201"
-ECR_REPO_NAME_MASTER="detect-vardaan"
+ECR_REPO_NAME_MASTER="edna-detect"
 MASTER_TEMPLATE_BODY="file://eks-master-infra.yaml"
 
 
 # Variables for Worker
 CLIENT_ROLE_ARN="arn-of-role-to-create-the-resources"
 AWS_ACCOUNT_ID_WORKER="637423168201"
-ECR_REPO_NAME_WORKER="detect-vardaan" 
+ECR_REPO_NAME_WORKER="edna-detect" 
 WORKER_TEMPLATE_BODY="file://eks-worker-infra.yaml"
 
 # ===============================
@@ -88,17 +88,17 @@ EIP_NAME_Master="$Master_Eip_1"
 #Mongo EIPs
 Mongo_Eip_1="detect-mongo"
 Mongo_Eip_2="detect-mongo-2"
-EIP_NAME_Mongo=$Mongo_Eip_2
+EIP_NAME_Mongo="$Mongo_Eip_1"
 
 #RAbbitmq EIPs
 Rabbitmq_Eip_1="detect-rabbitmq"
 Rabbitmq_Eip_2="detect-rabbitmq-2"
-EIP_Name_Rabbitmq=$Rabbitmq_Eip_1
+EIP_Name_Rabbitmq="$Rabbitmq_Eip_1"
 
 #Graylog EIPs
 Graylog_Eip_1="detect-graylog"
 Graylog_Eip_2="detect-graylog-2"
-EIP_Name_Graylog=$Graylog_Eip_1
+EIP_Name_Graylog="$Graylog_Eip_1"
 
 #Worker-Node-Exporter_Eip
 Worker_Node_Exporter_Eip_1="detect-Worker-Node-Exporter"

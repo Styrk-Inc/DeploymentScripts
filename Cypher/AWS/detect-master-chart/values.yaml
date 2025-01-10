@@ -41,7 +41,7 @@ celeryWorker:
   workingDir: "/app"
 
 frontend:
-  image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:ui
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:ui"
 
 
 rabbitmq:
