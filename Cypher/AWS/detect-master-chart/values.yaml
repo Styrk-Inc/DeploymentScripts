@@ -21,7 +21,7 @@ service:
     rabbitmq: 5672
 
 fastapi:
-  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:master"
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:master"
   port: 8000
   env:
     AIRFLOW_USER: "admin" 
@@ -37,11 +37,11 @@ fastapi:
  
 
 celeryWorker:
-  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:worker"
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:worker"
   workingDir: "/app"
 
 frontend:
-  image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:ui
+  image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:ui
 
 
 rabbitmq:
@@ -267,7 +267,7 @@ airflow:
   #        memory: 128Mi
     extraInitContainers:
       - name: copy-dags
-        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:airflow"
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:airflow"
         command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
         volumeMounts:
           - name: dags
@@ -278,7 +278,7 @@ airflow:
       size: 1Gi
     extraInitContainers:
       - name: copy-dags
-        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:airflow"
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:airflow"
         command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
         volumeMounts:
           - name: dags
@@ -290,7 +290,7 @@ airflow:
   dagProcessor:
     extraInitContainers:
       - name: copy-dags
-        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:airflow"
+        image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:airflow"
         command: [ 'sh', '-c', 'cp /app/airflow/dags/* /opt/airflow/dags' ]
         volumeMounts:
           - name: aitrism-dags

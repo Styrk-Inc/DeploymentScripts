@@ -33,11 +33,11 @@ service:
     rabbitmq: 5672
 
 fastapi:
-  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:master"
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:master"
   port: 8000
 
 celeryWorker:
-  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/detect-vardaan:worker"
+  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:worker"
   workingDir: "/app"
   replicaCount: 1
   resources:
