@@ -35,14 +35,12 @@ fastapi:
     GRAYLOG_PORT: "12201"
     APP_TYPE: "fastapi"
  
-
 celeryWorker:
   image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:worker"
   workingDir: "/app"
 
 frontend:
   image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:ui"
-
 
 rabbitmq:
   image: "rabbitmq:3-management"
