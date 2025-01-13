@@ -69,7 +69,8 @@ spec:
               value: "{{ .Values.fastapi.env.GRAYLOG_PORT }}"
             - name: APP_TYPE
               value: "{{ .Values.fastapi.env.APP_TYPE }}"
-
+            - name: NEW_USERNAME
+              value: "{{ .Values.fastapi.env.NEW_USERNAME }}"
         - name: reactapp
           image: "{{ .Values.frontend.image }}"
           imagePullPolicy: "{{ .Values.imagePullPolicy }}"
