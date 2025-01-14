@@ -18,7 +18,7 @@ sed -i "s|SECRET_REGION_NAME: \".*\"|SECRET_REGION_NAME: \"${SECRET_REGION_NAME}
 sed -i "s|COGNITO_CLIENT_ID: \".*\"|COGNITO_CLIENT_ID: \"${COGNITO_CLIENT_ID}\"|" "$target_file"
 sed -i "s|COGNITO_USER_POOL_ID: \".*\"|COGNITO_USER_POOL_ID: \"${COGNITO_USER_POOL_ID}\"|" "$target_file"
 sed -i "s|COGNITO_REGION: \".*\"|COGNITO_REGION: \"${COGNITO_REGION}\"|" "$target_file"
-sed -i "s|NEW_USERNAME: \".*\"|NEW_USERNAME: \"${NEW_USERNAME}\"|" "$target_file"
+sed -i "s|NEW_USERNAME: \".*\"|NEW_USERNAME: \"${COGNITO_USER_MAIL_ID}\"|" "$target_file"
 
 # Print a message indicating completion
 echo "Replacements completed successfully in $target_file."

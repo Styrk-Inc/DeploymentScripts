@@ -14,7 +14,7 @@ InstanceType="t2.xlarge"
 COGNITO_CLIENT_ID="pass-cognito-client-id"          # Update Cognito Client ID
 COGNITO_USER_POOL_ID="pass-cognito-user-pool-id"    # Update Cognito User Pool ID
 COGNITO_REGION="us-east-1"                          # Update Cognito Region
-NEW_USERNAME="user@domain.com"                        # Provide First User name
+COGNITO_USER_MAIL_ID="user@domain.com"                        # Provide First User name
 
 #Secret Manager Parameters.
 SECRET_BASE_NAME="secret_name"                   # Secret Name

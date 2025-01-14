@@ -483,7 +483,7 @@ Resources:
                 COGNITO_CLIENT_ID: "pass-cognito-client-id"
                 COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
                 COGNITO_REGION: "us-east-1"
-                NEW_USERNAME: "Provide_Username"
+                NEW_USERNAME: "Provide_Cognito_Username"
                 ALGORITHM : "HS256"
                 EMAIL_USER : "noreply@infrablok.com"
                 mongodb_ip: "mongodb"
