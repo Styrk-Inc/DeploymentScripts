@@ -278,6 +278,63 @@ Resources:
           LLM_Guard_Backend_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_Backend_Image_Tag
           LLM_Guard_UI_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_UI_Image_Tag
 
+          ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"
+          ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"
+          ECR_ROLE_EXTERNAL_ID="external-id-12345"
+
+
+          # Function to assume the ECR role and set temporary credentials
+          assume_ecr_role() {
+              echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
+              ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$Region")
+              
+              if [ $? -ne 0 ]; then
+                  echo "Error assuming ECR role. Exiting."
+                  exit 1
+              fi
+
+              export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
+              export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
+              export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
+              echo "Temporary credentials for ECR set for this session."
+          }
+
+
+          # Authenticate with ECR and pull images
+          ecr_auth_and_pull_images() {
+              echo "Authenticating with ECR..."
+              aws ecr get-login-password --region "$Region" | docker login --username AWS --password-stdin "$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com"
+
+              echo "Pulling LLM Guard Backend image..."
+              docker pull "$LLM_Guard_Backend_Image_URI"
+
+              echo "Pulling LLM Guard UI image..."
+              docker pull "$LLM_Guard_UI_Image_URI"
+          }
+
+
+          # Clear temporary credentials
+          clear_ecr_credentials() {
+              unset AWS_ACCESS_KEY_ID
+              unset AWS_SECRET_ACCESS_KEY
+              unset AWS_SESSION_TOKEN
+              echo "Temporary credentials cleared."
+          }
+
+          # Main Script Execution
+          assume_ecr_role
+          ecr_auth_and_pull_images
+          clear_ecr_credentials
+
+          # Continue with other installation tasks
+          echo "ECR images pulled successfully. Proceeding with setup."
+
+          # # Pull the LLM_Guard_Backend image
+          # docker pull $LLM_Guard_Backend_Image_URI
+
+          # # Pull the LLM_Guard_UI image
+          # docker pull $LLM_Guard_UI_Image_URI
+
           # Install required packages
           sudo apt-get update -y
           sudo apt-get install -y awscli docker.io docker-compose
@@ -382,11 +439,11 @@ Resources:
           # Authenticate Docker with ECR
           aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $Aws_Account_ID.dkr.ecr.$Region.amazonaws.com
 
-          # Pull the LLM_Guard_Backend image
-          docker pull $LLM_Guard_Backend_Image_URI
+          # # Pull the LLM_Guard_Backend image
+          # docker pull $LLM_Guard_Backend_Image_URI
 
-          # Pull the LLM_Guard_UI image
-          docker pull $LLM_Guard_UI_Image_URI
+          # # Pull the LLM_Guard_UI image
+          # docker pull $LLM_Guard_UI_Image_URI
 
           # Create docker-compose.yml file
           cd /home/ubuntu/
@@ -417,20 +474,23 @@ Resources:
               # Uncomment the command if you need to override the container's default command
               # command: /start
               environment:
-                SECRET_BASE_NAME: "llm_security_keys"
+                SECRET_BASE_NAME: "secret_name"
+                SECRET_REGION_NAME: "us-east-1"
                 SERVICE_NAME: "private_gpt_stack_PrivateGPT"
                 STATE_FILE: "/app/state_file.json"
                 graylog_host: "graylog"
                 GRAYLOG_PORT: "12201"
-                COGNITO_CLIENT_ID: "7ng749miu7sfg42q5c320785jh"
-                COGNITO_USER_POOL_ID: "us-east-1_pp9pdFP3g"
+                COGNITO_CLIENT_ID: "pass-cognito-client-id"
+                COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
                 COGNITO_REGION: "us-east-1"
+                NEW_USERNAME: "Provide_Username"
                 ALGORITHM : "HS256"
                 EMAIL_USER : "noreply@infrablok.com"
                 mongodb_ip: "mongodb"
                 mongo_user: "Admin"
                 mongo_password: "Admin@123"
-                SECRET_REGION_NAME: "us-east-1"
+                AWS_ACCESS_KEY_ID: "Update_Keys with secret manager access"
+                AWS_SECRET_ACCESS_KEY: "Update_Keys with secret manager access"
 
               volumes:
                 # - /home/pratish/git_repo/private_gpt/:/app
