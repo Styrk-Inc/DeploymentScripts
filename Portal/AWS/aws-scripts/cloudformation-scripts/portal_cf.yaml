@@ -1,21 +1,27 @@
+# Added Autoscaling Group and Launch Configuration Support to deploy in Multi Availability zones
+# Added alarms to autoscale instances
+
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Provision LLM_Guard Environment in Private Subnet and access it using ALB.
+Description: Multi-AZ deployment with Graylog integration using Auto Scaling Group.
 
 Parameters:
   SSHKeyname:
-    Description: SSH key to Access instance
+    Description: SSH key to access instances
     Type: String
   InstanceType:
-    Description: Provide instance type
+    Description: EC2 instance type
     Type: String
     Default: t2.large
   ExistingIAMRoleName:
-    Description: Name of the existing IAM role to attach to the instance
+    Description: Name of the existing IAM role to attach to instances
     Type: String
     Default: Portal_ECR_Role
+  VolumeSize:
+    Description: EBS volume size in GiB
+    Type: Number
+    Default: 60
 Resources:
-
-  # Create VPC
+  # VPC
   VPC:
     Type: 'AWS::EC2::VPC'
     Properties:
@@ -26,19 +32,18 @@ Resources:
         - Key: Name
           Value: 'LLM_Guard_VPC'
 
-  # Create Public Subnet 1
+  # Subnets
   PublicSubnet1:
     Type: 'AWS::EC2::Subnet'
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: '10.0.0.0/24'
+      CidrBlock: '10.0.1.0/24'
       AvailabilityZone: 'us-east-1a'
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: 'LLM_Guard_Public_Subnet_1'
 
-  # Create Public Subnet 2
   PublicSubnet2:
     Type: 'AWS::EC2::Subnet'
     Properties:
@@ -50,29 +55,27 @@ Resources:
         - Key: Name
           Value: 'LLM_Guard_Public_Subnet_2'
 
-  # Create Private Subnet 1
   PrivateSubnet1:
     Type: 'AWS::EC2::Subnet'
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: '10.0.1.0/24'
+      CidrBlock: '10.0.3.0/24'
       AvailabilityZone: 'us-east-1a'
       Tags:
         - Key: Name
           Value: 'LLM_Guard_Private_Subnet_1'
 
-  # Create Private Subnet 2
   PrivateSubnet2:
     Type: 'AWS::EC2::Subnet'
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: '10.0.3.0/24'
+      CidrBlock: '10.0.4.0/24'
       AvailabilityZone: 'us-east-1b'
       Tags:
         - Key: Name
           Value: 'LLM_Guard_Private_Subnet_2'
 
-  # Create Internet Gateway for Public Subnets
+  # Internet Gateway
   InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties:
@@ -80,31 +83,42 @@ Resources:
         - Key: Name
           Value: 'LLM_Guard_IGW'
 
-  # Attach Internet Gateway to VPC
   AttachIGW:
     Type: 'AWS::EC2::VPCGatewayAttachment'
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-  # Create NAT Gateway Elastic IP (EIP)
-  NatGatewayEIP:
+  # NAT Gateways
+  NatGatewayEIP1:
     Type: 'AWS::EC2::EIP'
-    DependsOn: AttachIGW
-    Properties: 
+    Properties:
       Domain: 'vpc'
 
-  # Create NAT Gateway
-  NatGateway:
+  NatGateway1:
     Type: 'AWS::EC2::NatGateway'
     Properties:
-      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      AllocationId: !GetAtt NatGatewayEIP1.AllocationId
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: 'LLM_Guard_NAT_Gateway'
+          Value: 'LLM_Guard_NAT_Gateway_1'
 
-  # Create Public Route Table
+  NatGatewayEIP2:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: 'vpc'
+
+  NatGateway2:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_NAT_Gateway_2'
+
+  # Route Tables
   PublicRouteTable:
     Type: 'AWS::EC2::RouteTable'
     Properties:
@@ -113,7 +127,6 @@ Resources:
         - Key: Name
           Value: 'LLM_Guard_Public_Route_Table'
 
-  # Create Route for Public Route Table (Internet Access)
   PublicRoute:
     Type: 'AWS::EC2::Route'
     DependsOn: AttachIGW
@@ -122,7 +135,6 @@ Resources:
       DestinationCidrBlock: '0.0.0.0/0'
       GatewayId: !Ref InternetGateway
 
-  # Associate Public Route Table with Public Subnets
   PublicSubnetRouteTableAssociation1:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
@@ -135,88 +147,53 @@ Resources:
       SubnetId: !Ref PublicSubnet2
       RouteTableId: !Ref PublicRouteTable
 
-  # Create Private Route Table
-  PrivateRouteTable:
+  PrivateRouteTable1:
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: 'LLM_Guard_Private_Route_Table'
+          Value: 'LLM_Guard_Private_Route_Table_1'
 
-  # Create Route for Private Route Table (NAT Gateway Access)
-  PrivateRoute:
+  PrivateRoute1:
     Type: 'AWS::EC2::Route'
-    DependsOn: NatGateway
     Properties:
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable1
       DestinationCidrBlock: '0.0.0.0/0'
-      NatGatewayId: !Ref NatGateway
+      NatGatewayId: !Ref NatGateway1
 
-  # Associate Private Route Table with Private Subnets
+  PrivateRouteTable2:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Private_Route_Table_2'
+
+  PrivateRoute2:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref NatGateway2
+
   PrivateSubnetRouteTableAssociation1:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       SubnetId: !Ref PrivateSubnet1
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable1
 
   PrivateSubnetRouteTableAssociation2:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       SubnetId: !Ref PrivateSubnet2
-      RouteTableId: !Ref PrivateRouteTable
+      RouteTableId: !Ref PrivateRouteTable2
 
-  # # Create IAM Role for EC2 Instance
-  # LLMGuardRole:
-  #   Type: 'AWS::IAM::Role'
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: 'Allow'
-  #           Principal:
-  #             Service: 'ec2.amazonaws.com'
-  #           Action: 'sts:AssumeRole'
-  #     Policies:
-  #       - PolicyName: 'LLM_GuardEC2Policy'
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             - Effect: 'Allow'
-  #               Action:
-  #                 - 'ec2:DescribeInstances'
-  #                 - 'ec2:DescribeRegions'
-  #                 - 'ec2:DescribeVolumes'
-  #                 - 'ec2:DescribeInstances'
-  #                 - 'ec2:AttachVolume'
-  #                 - 'ec2:DetachVolume'
-  #                 - 'ec2:DescribeVolumeStatus'
-  #                 - 'ec2:ModifyInstanceAttribute'
-  #               Resource: '*'
-  #             - Effect: 'Allow'
-  #               Action:
-  #                 - 'ecr:GetAuthorizationToken'
-  #                 - 'ecr:BatchGetImage'
-  #                 - 'ecr:BatchCheckLayerAvailability'
-  #                 - 'ecr:GetDownloadUrlForLayer'
-  #                 - 'ecr:PutImage'  # Allow pushing images to ECR
-  #                 - 'ecr:InitiateLayerUpload'  # Allow starting an upload of an image layer
-  #                 - 'ecr:UploadLayerPart'  # Allow uploading parts of an image layer
-  #                 - 'ecr:CompleteLayerUpload'  # Allow completing the upload of an image layer
-  #               Resource: '*'
-
-  # Create IAM Instance Profile to Attach the Role
-  LLMGuardInstanceProfile:
-    Type: 'AWS::IAM::InstanceProfile'
-    Properties:
-      Roles:
-        - Ref: ExistingIAMRoleName
-
-  # Create Security Group
+  # Security Group
   LLMGuardSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: 'Allow inbound HTTP and HTTPS traffic'
+      GroupDescription: 'Allow inbound HTTP, HTTPS, Graylog traffic'
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: 'tcp'
@@ -242,541 +219,623 @@ Resources:
         - IpProtocol: 'tcp'
           FromPort: '9000'
           ToPort: '9000'
-          CidrIp: '0.0.0.0/0'  # Allow UI from any IP
+          CidrIp: '0.0.0.0/0'  # Allow Graylog from any IP
       Tags:
         - Key: Name
-          Value: 'LLMGuard-SecurityGroup'
+          Value: 'LLM_Guard_Security_Group'
 
-  # Create EC2 Instance
-  Instance:
-    Type: 'AWS::EC2::Instance'
-    Properties: 
-      ImageId: ami-005fc0f236362e99f
-      InstanceType: !Ref InstanceType
-      KeyName: !Ref SSHKeyname
-      SubnetId: !Ref PrivateSubnet2  # Reference to the private subnet
-      SecurityGroupIds: 
-        - !Ref LLMGuardSecurityGroup  # Attach security group to the EC2 instance
-      BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: 60 # Size in GB
-            VolumeType: gp2
-      IamInstanceProfile: !Ref LLMGuardInstanceProfile
-      Monitoring: true  # Enables detailed monitoring
-      Tags:
-        - Key: Name
-          Value: LLM_Guard-CF-Private-instance
-        - Key: Environment
-          Value: Production
-        - Key: Owner
-          Value: Styrk
+  # Launch Template with UserData
+  LaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Properties:
+      LaunchTemplateName: 'LLMGuard-LaunchTemplate'
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref SSHKeyname
+        SecurityGroupIds:
+          - !Ref LLMGuardSecurityGroup
+        ImageId: ami-005fc0f236362e99f
+        IamInstanceProfile:
+          Name: !Ref ExistingIAMRoleName
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1  # Root volume mapped to /dev/sda1
+            Ebs:
+              VolumeSize: !Ref VolumeSize  # Define in parameters
+              VolumeType: gp2  # General Purpose SSD
+              DeleteOnTermination: true  # Automatically delete when the instance is terminated
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            sleep 120
+            # Define ECR Variables
+            Aws_Account_ID=637423168201
+            Region=us-east-1
+            LLM_Guard_ECR_Repo=llm_guard_repo
+            LLM_Guard_UI_Image_Tag=ui
+            LLM_Guard_Backend_Image_Tag=backend
+            LLM_Guard_Backend_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_Backend_Image_Tag
+            LLM_Guard_UI_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_UI_Image_Tag
 
-  # Installing packages and start containers
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          sleep 120
-          # Define ECR Variables
-          Aws_Account_ID=637423168201
-          Region=us-east-1
-          LLM_Guard_ECR_Repo=llm_guard_repo
-          LLM_Guard_UI_Image_Tag=ui
-          LLM_Guard_Backend_Image_Tag=backend
-          LLM_Guard_Backend_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_Backend_Image_Tag
-          LLM_Guard_UI_Image_URI=$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_UI_Image_Tag
+            ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"
+            ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"
+            ECR_ROLE_EXTERNAL_ID="external-id-12345"
 
-          ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"
-          ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"
-          ECR_ROLE_EXTERNAL_ID="external-id-12345"
+            # Install required packages
+            sudo apt-get update -y
+            sudo apt-get install -y jq awscli docker.io docker-compose
 
-          # Install required packages
-          sudo apt-get update -y
-          sudo apt-get install -y jq awscli docker.io docker-compose
+            # Function to assume the ECR role and set temporary credentials
+            assume_ecr_role() {
+                echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
+                ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$Region")
+                
+                if [ $? -ne 0 ]; then
+                    echo "Error assuming ECR role. Exiting."
+                    exit 1
+                fi
 
-          # Function to assume the ECR role and set temporary credentials
-          assume_ecr_role() {
-              echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
-              ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$Region")
+                export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
+                export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
+                export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
+                echo "Temporary credentials for ECR set for this session."
+            }
+
+            # Authenticate with ECR and pull images
+            ecr_auth_and_pull_images() {
+                echo "Authenticating with ECR..."
+                aws ecr get-login-password --region "$Region" | sudo docker login --username AWS --password-stdin "$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com"
+
+                echo "Pulling LLM Guard Backend image..."
+                sudo docker pull "$LLM_Guard_Backend_Image_URI"
+
+                echo "Pulling LLM Guard UI image..."
+                sudo docker pull "$LLM_Guard_UI_Image_URI"
+            }
+
+            # Clear temporary credentials
+            clear_ecr_credentials() {
+                unset AWS_ACCESS_KEY_ID
+                unset AWS_SECRET_ACCESS_KEY
+                unset AWS_SESSION_TOKEN
+                echo "Temporary credentials cleared."
+            }
+
+            # Main Script Execution
+            assume_ecr_role
+            ecr_auth_and_pull_images
+            clear_ecr_credentials
+
+            # Continue with other installation tasks
+            echo "ECR images pulled successfully. Proceeding with setup."
+
+            # # Pull the LLM_Guard_Backend image
+            # docker pull $LLM_Guard_Backend_Image_URI
+
+            # # Pull the LLM_Guard_UI image
+            # docker pull $LLM_Guard_UI_Image_URI
+
+            # Add docker to ubuntu user group
+            sudo usermod -aG docker ubuntu
+
+            # Install Nginx server
+            sudo apt update
+            sudo apt install nginx -y
+            # Backup the original configuration file
+            if [ -f /etc/nginx/sites-available/default ]; then
+                sudo mv /etc/nginx/sites-available/default /etc/nginx/sites-available/default_bkp
+            fi
+            # Define the file path for the Nginx configuration
+            NGINX_CONFIG_FILE="/etc/nginx/sites-available/default"
+
+            # Create the Nginx configuration with a reverse proxy setup
+            cat <<'EOL' | sudo tee $NGINX_CONFIG_FILE > /dev/null
+            server {
+                listen 80;
+
+                location / {
+                    proxy_pass http://localhost:8080;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
+
+                    # Increase timeouts for longer requests
+                    proxy_connect_timeout 600s;
+                    proxy_send_timeout 600s;
+                    proxy_read_timeout 600s;
+                }
+
+                location /api/ {
+                    proxy_pass http://localhost:8000/api/;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
+
+                    # Increase timeouts for longer requests
+                    proxy_connect_timeout 600s;
+                    proxy_send_timeout 600s;
+                    proxy_read_timeout 600s;
+                }
+
+                location /docs {
+                    proxy_pass http://localhost:8000/docs;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
+
+                    # Increase timeouts for longer requests
+                    proxy_connect_timeout 600s;
+                    proxy_send_timeout 600s;
+                    proxy_read_timeout 600s;
+                }
+
+                location /openapi.json {
+                    proxy_pass http://localhost:8000/openapi.json;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
+
+                    # Increase timeouts for longer requests
+                    proxy_connect_timeout 600s;
+                    proxy_send_timeout 600s;
+                    proxy_read_timeout 600s;
+                }
+
+                location /graylog/ {
+                    proxy_pass http://localhost:9000/;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host \$host;
+                    proxy_cache_bypass \$http_upgrade;
+
+                    # Increase timeouts for Graylog
+                    proxy_connect_timeout 600s;
+                    proxy_send_timeout 600s;
+                    proxy_read_timeout 600s;
+                }
+            }
+            EOL
+
+            # Reload Nginx to apply the changes
+            sudo systemctl reload nginx
+
+            # Enable and start Docker service
+            sudo systemctl enable docker
+            sudo systemctl start docker
+
+            # Attach EBS volume
+            # INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+            # aws ec2 attach-volume --volume-id vol-001420c3f2987c560 --instance-id $INSTANCE_ID --region us-east-1 --device /dev/sdh
+
+            # Wait for the volume to be fully attached
+            # sleep 30
+
+            # # Format the disk if needed
+            # sudo mkfs.ext4 /dev/xvdh
+
+            # # Mount EBS volume for MongoDB persist data
+            # sudo mkdir -p /mnt/mongodb_data
+            # sudo mount /dev/xvdh /mnt/mongodb_data/
+
+            # Authenticate Docker with ECR
+            aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $Aws_Account_ID.dkr.ecr.$Region.amazonaws.com
+
+            # # Pull the LLM_Guard_Backend image
+            # docker pull $LLM_Guard_Backend_Image_URI
+
+            # # Pull the LLM_Guard_UI image
+            # docker pull $LLM_Guard_UI_Image_URI
+
+            # Create docker-compose.yml file
+            cd /home/ubuntu/
+            cat <<EOF > docker-compose.yml
+            version: '3.8'  # It's good practice to specify the version of the Docker Compose file format
+
+            services:
+              private-gpt-UI:
+                container_name: prompt_guard_ui
+                image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/llm_guard_repo:ui
+                #build:
+                #  context: .
+                #  dockerfile: prompt_guard_ui/Dockerfile
+                ports:
+                  - "8080:80"
+                restart: unless-stopped
+                deploy:
+                  replicas: 1
+                  restart_policy:
+                    condition: on-failure
+
+              PrivateGPT:  # Service names are typically lowercase, but it's not a strict requirement
+                #build:
+                #  context: .
+                #  dockerfile: prompt_guard_backend/Dockerfile  # Relative paths don't need './' prefix, but it's okay to include it
+                container_name: private_gpt  # Container names are typically lowercase
+                image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/llm_guard_repo:backend
+                # Uncomment the command if you need to override the container's default command
+                # command: /start
+                environment:
+                  SECRET_NAME: "secret_name"
+                  SECRET_REGION_NAME: "us-east-1"
+                  SERVICE_NAME: "private_gpt_stack_PrivateGPT"
+                  STATE_FILE: "/app/state_file.json"
+                  graylog_host: "graylog"
+                  GRAYLOG_PORT: "12201"
+                  COGNITO_CLIENT_ID: "pass-cognito-client-id"
+                  COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
+                  COGNITO_REGION: "us-east-1"
+                  NEW_USERNAME: "Provide_Cognito_Username"
+                  ALGORITHM : "HS256"
+                  EMAIL_USER : "noreply@infrablok.com"
+                  mongodb_ip: "mongodb"
+                  mongo_user: "Admin"
+                  mongo_password: "Admin@123"
+                  #AWS_ACCESS_KEY_ID: "Update_Keys with secret manager access"
+                  #AWS_SECRET_ACCESS_KEY: "Update_Keys with secret manager access"
+
+                volumes:
+                  # - /home/pratish/git_repo/private_gpt/:/app
+                  - /var/run/docker.sock:/var/run/docker.sock
+                  - /usr/bin/docker:/usr/bin/docker
+                  #- .:/app  # Maps the current directory to /app in the container
+                ports:
+                  - "8000:8000"  # Quoting the port mapping is a good practice to avoid YAML interpreting numbers in a different base
+                depends_on:
+                  # - mongodbsudo systemctl stop mongod
+                  - graylog
+
+                # Uncomment and adjust the env_file if you want to use an environment file
+                # env_file:
+                #   - .env/.dev-sample
+
+              mongodb:
+                container_name: mongodb
+                image: mongo:latest
+                volumes:
+                  - mongodb_data:/data/db
+                ports:
+                  - "27017:27017"
+                environment:
+                  MONGO_INITDB_ROOT_USERNAME: Admin
+                  MONGO_INITDB_ROOT_PASSWORD: Admin@123
+              # MongoDB for Graylog
               
-              if [ $? -ne 0 ]; then
-                  echo "Error assuming ECR role. Exiting."
-                  exit 1
-              fi
-
-              export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
-              export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
-              export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
-              echo "Temporary credentials for ECR set for this session."
-          }
-
-          # Authenticate with ECR and pull images
-          ecr_auth_and_pull_images() {
-              echo "Authenticating with ECR..."
-              aws ecr get-login-password --region "$Region" | sudo docker login --username AWS --password-stdin "$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com"
-
-              echo "Pulling LLM Guard Backend image..."
-              sudo docker pull "$LLM_Guard_Backend_Image_URI"
-
-              echo "Pulling LLM Guard UI image..."
-              sudo docker pull "$LLM_Guard_UI_Image_URI"
-          }
-
-          # Clear temporary credentials
-          clear_ecr_credentials() {
-              unset AWS_ACCESS_KEY_ID
-              unset AWS_SECRET_ACCESS_KEY
-              unset AWS_SESSION_TOKEN
-              echo "Temporary credentials cleared."
-          }
-
-          # Main Script Execution
-          assume_ecr_role
-          ecr_auth_and_pull_images
-          clear_ecr_credentials
-
-          # Continue with other installation tasks
-          echo "ECR images pulled successfully. Proceeding with setup."
-
-          # # Pull the LLM_Guard_Backend image
-          # docker pull $LLM_Guard_Backend_Image_URI
-
-          # # Pull the LLM_Guard_UI image
-          # docker pull $LLM_Guard_UI_Image_URI
-
-          # Add docker to ubuntu user group
-          sudo usermod -aG docker ubuntu
-
-          # Install Nginx server
-          sudo apt update
-          sudo apt install nginx -y
-          # Backup the original configuration file
-          if [ -f /etc/nginx/sites-available/default ]; then
-              sudo mv /etc/nginx/sites-available/default /etc/nginx/sites-available/default_bkp
-          fi
-          # Define the file path for the Nginx configuration
-          NGINX_CONFIG_FILE="/etc/nginx/sites-available/default"
-
-          # Create the Nginx configuration with a reverse proxy setup
-          cat <<EOL | sudo tee $NGINX_CONFIG_FILE > /dev/null
-          server {
-              listen 80;
-
-              location / {
-                  proxy_pass http://localhost:8080;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \$host;
-                  proxy_cache_bypass \$http_upgrade;
-
-                  # Increase timeouts for longer requests
-                  proxy_connect_timeout 600s;
-                  proxy_send_timeout 600s;
-                  proxy_read_timeout 600s;
-              }
-
-              location /api/ {
-                  proxy_pass http://localhost:8000/api/;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \$host;
-                  proxy_cache_bypass \$http_upgrade;
-
-                  # Increase timeouts for longer requests
-                  proxy_connect_timeout 600s;
-                  proxy_send_timeout 600s;
-                  proxy_read_timeout 600s;
-              }
-
-              location /docs {
-                  proxy_pass http://localhost:8000/docs;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \$host;
-                  proxy_cache_bypass \$http_upgrade;
-
-                  # Increase timeouts for longer requests
-                  proxy_connect_timeout 600s;
-                  proxy_send_timeout 600s;
-                  proxy_read_timeout 600s;
-              }
-
-              location /openapi.json {
-                  proxy_pass http://localhost:8000/openapi.json;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \$host;
-                  proxy_cache_bypass \$http_upgrade;
-
-                  # Increase timeouts for longer requests
-                  proxy_connect_timeout 600s;
-                  proxy_send_timeout 600s;
-                  proxy_read_timeout 600s;
-              }
-          }
-          EOL
-
-          # Reload Nginx to apply the changes
-          sudo systemctl reload nginx
-
-          # Enable and start Docker service
-          sudo systemctl enable docker
-          sudo systemctl start docker
-
-          # Attach EBS volume
-          # INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-          # aws ec2 attach-volume --volume-id vol-001420c3f2987c560 --instance-id $INSTANCE_ID --region us-east-1 --device /dev/sdh
-
-          # Wait for the volume to be fully attached
-          # sleep 30
-
-          # # Format the disk if needed
-          # sudo mkfs.ext4 /dev/xvdh
-
-          # # Mount EBS volume for MongoDB persist data
-          # sudo mkdir -p /mnt/mongodb_data
-          # sudo mount /dev/xvdh /mnt/mongodb_data/
-
-          # Authenticate Docker with ECR
-          aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $Aws_Account_ID.dkr.ecr.$Region.amazonaws.com
-
-          # # Pull the LLM_Guard_Backend image
-          # docker pull $LLM_Guard_Backend_Image_URI
-
-          # # Pull the LLM_Guard_UI image
-          # docker pull $LLM_Guard_UI_Image_URI
-
-          # Create docker-compose.yml file
-          cd /home/ubuntu/
-          cat <<EOF > docker-compose.yml
-          version: '3.8'  # It's good practice to specify the version of the Docker Compose file format
-
-          services:
-            private-gpt-UI:
-              container_name: prompt_guard_ui
-              image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/llm_guard_repo:ui
-              #build:
-              #  context: .
-              #  dockerfile: prompt_guard_ui/Dockerfile
-              ports:
-                - "8080:80"
-              restart: unless-stopped
-              deploy:
-                replicas: 1
-                restart_policy:
-                  condition: on-failure
-
-            PrivateGPT:  # Service names are typically lowercase, but it's not a strict requirement
-              #build:
-              #  context: .
-              #  dockerfile: prompt_guard_backend/Dockerfile  # Relative paths don't need './' prefix, but it's okay to include it
-              container_name: private_gpt  # Container names are typically lowercase
-              image: 637423168201.dkr.ecr.us-east-1.amazonaws.com/llm_guard_repo:backend
-              # Uncomment the command if you need to override the container's default command
-              # command: /start
-              environment:
-                SECRET_NAME: "secret_name"
-                SECRET_REGION_NAME: "us-east-1"
-                SERVICE_NAME: "private_gpt_stack_PrivateGPT"
-                STATE_FILE: "/app/state_file.json"
-                graylog_host: "graylog"
-                GRAYLOG_PORT: "12201"
-                COGNITO_CLIENT_ID: "pass-cognito-client-id"
-                COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
-                COGNITO_REGION: "us-east-1"
-                NEW_USERNAME: "Provide_Cognito_Username"
-                ALGORITHM : "HS256"
-                EMAIL_USER : "noreply@infrablok.com"
-                mongodb_ip: "mongodb"
-                mongo_user: "Admin"
-                mongo_password: "Admin@123"
-                #AWS_ACCESS_KEY_ID: "Update_Keys with secret manager access"
-                #AWS_SECRET_ACCESS_KEY: "Update_Keys with secret manager access"
-
-              volumes:
-                # - /home/pratish/git_repo/private_gpt/:/app
-                - /var/run/docker.sock:/var/run/docker.sock
-                - /usr/bin/docker:/usr/bin/docker
-                #- .:/app  # Maps the current directory to /app in the container
-              ports:
-                - "8000:8000"  # Quoting the port mapping is a good practice to avoid YAML interpreting numbers in a different base
-              depends_on:
-                # - mongodbsudo systemctl stop mongod
-                - graylog
-
-              # Uncomment and adjust the env_file if you want to use an environment file
-              # env_file:
-              #   - .env/.dev-sample
-
-            mongodb:
-              container_name: mongodb
-              image: mongo:latest
-              volumes:
-                - mongodb_data:/data/db
-              ports:
-                - "27017:27017"
-              environment:
-                MONGO_INITDB_ROOT_USERNAME: Admin
-                MONGO_INITDB_ROOT_PASSWORD: Admin@123
-            # MongoDB for Graylog
-            
-            # mongo for graylog
-            mongo:
-              container_name: mongo_graylog
-              image: mongo:5.0.7
-              volumes:
-                - mongo_data:/data/db
-
-            # Elasticsearch for Graylog
-            elasticsearch:
-              container_name: elasticsearch
-              image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2
-              environment:
-                - http.host=0.0.0.0
-                - transport.host=localhost
-                - network.host=0.0.0.0
-                - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-              ulimits:
-                memlock:
-                  soft: -1
-                  hard: -1
-              volumes:
-                - es_data:/usr/share/elasticsearch/data
-
-            # Graylog
-            graylog:
-              container_name: graylog
-              image: graylog/graylog:5.2
-              environment:
-                - GRAYLOG_ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-                - GRAYLOG_PASSWORD_SECRET=somepasswordpepper  # Ensure this is at least 16 characters
-                - GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918  # Admin password SHA-2 hash
-              depends_on:
-                - mongo
-                - elasticsearch
-              ports:
-                - "9000:9000"  # Graylog web interface
-              volumes:
-                - ./graylog.sh:/home/graylog.sh
-                - graylog_data:/usr/share/graylog/data
-              entrypoint: ["/bin/sh", "-c", "/docker-entrypoint.sh  &  /home/graylog.sh"]
-
-          volumes:
-            mongo_data:  # Define the volume used by MongoDB for persisting data
-            graylog.sh:
-            graylog_data:
-            es_data:
-            mongodb_data:
-
-          networks:
-            default:  # Explicitly defining the default network is not necessary unless you're customizing it
-          EOF
-
-          echo "docker-compose.yml file created successfully!"
-
-          # Directly create and configure the Docker daemon.json file with the DNS settings
-          sudo mkdir -p /etc/docker
-
-          # Define the DNS configuration
-          cat <<EOL | sudo tee /etc/docker/daemon.json > /dev/null
-          {
-            "dns": ["8.8.8.8", "8.8.4.4"]
-          }
-          EOL
-
-          # Restart the Docker service to apply changes
-          echo "Restarting Docker service..."
-          sudo systemctl restart docker
-
-          # Verify the update
-          if sudo systemctl is-active --quiet docker; then
-              echo "Docker service restarted successfully."
-              echo "Updated Docker configuration:"
-              cat /etc/docker/daemon.json
-          else
-              echo "Failed to restart Docker service. Please check the configuration and try again."
-          fi
-
-          # Create the combined ECR pull and credential clearing script
-          cat <<'EOF' > /home/ubuntu/redeploy_stack.sh
-
-          # Define variables
-          ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"
-          ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"
-          ECR_ROLE_EXTERNAL_ID="external-id-12345"
-          Region="us-east-1"
-
-          Aws_Account_ID="637423168201"
-          LLM_Guard_ECR_Repo="llm_guard_repo"
-          LLM_Guard_UI_Image_Tag="ui"
-          LLM_Guard_Backend_Image_Tag="backend"
-          LLM_Guard_Backend_Image_URI="$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_Backend_Image_Tag"
-          LLM_Guard_UI_Image_URI="$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_UI_Image_Tag"
-
-          # Function to assume ECR role and set temporary credentials
-          assume_ecr_role() {
-              echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
-              ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$Region")
-
-              if [ $? -ne 0 ]; then
-                  echo "Error assuming ECR role. Exiting."
-                  exit 1
-              fi
-
-              export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
-              export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
-              export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
-              echo "Temporary credentials for ECR set for this session."
-          }
-
-          # Function to authenticate and pull Docker images
-          pull_ecr_images() {
-              echo "Authenticating with ECR..."
-              aws ecr get-login-password --region "$Region" | sudo docker login --username AWS --password-stdin "$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com"
-
-              echo "Pulling LLM Guard Backend image..."
-              sudo docker pull "$LLM_Guard_Backend_Image_URI"
-
-              echo "Pulling LLM Guard UI image..."
-              sudo docker pull "$LLM_Guard_UI_Image_URI"
-          }
-
-          # Function to clear temporary credentials
-          clear_ecr_credentials() {
-              unset AWS_ACCESS_KEY_ID
-              unset AWS_SECRET_ACCESS_KEY
-              unset AWS_SESSION_TOKEN
-              echo "Temporary credentials cleared."
-          }
-
-          # Main script execution
-          assume_ecr_role
-          pull_ecr_images
-          clear_ecr_credentials
-
-          echo "ECR images pulled successfully and credentials cleared."
-
-          # Redeploy portal stack
-          sudo docker stack deploy --resolve-image always -c /home/ubuntu/docker-compose.yml private_gpt_stack
-
-          echo "Portal stack redeployed with the latest images"
-          EOF
-
-          # Make the script executable
-          chmod +x /home/ubuntu/redeploy_stack.sh
-
-          # Create the graylog.sh file using a here document
-          cat << 'EOF' > graylog.sh
-          #!/bin/bash
-
-          echo "*******************************************************"
-          echo "#####################################################################"
-          echo "Waiting for 40 seconds..."
-          sleep 30
-
-          echo "Execution resumed"
-          INPUT_TITLE="My GELF TCP"
-
-          # Function to check if input exists in Graylog
-          check_input(){
-              echo "Checking input script called"
-              curl -H "Authorization: Basic YWRtaW46YWRtaW4=" http://graylog:9000/api/system/inputs | jq --arg title "$INPUT_TITLE" '.inputs[] | select(.title == $title)'
-          }
-
-          # Function to create an input in Graylog
-          create_input() {
-              echo "Creating input script called"
-              curl --location 'http://graylog:9000/api/system/inputs' \
-              --header 'X-Requested-By: cli' \
-              --header 'Content-Type: application/json' \
-              --header 'Authorization: Basic YWRtaW46YWRtaW4=' \
-              --data "{
-              \"title\": \"$INPUT_TITLE\",
-              \"type\": \"org.graylog2.inputs.gelf.tcp.GELFTCPInput\",
-              \"configuration\": {
-              \"bind_address\": \"0.0.0.0\",
-              \"port\": 12201,
-              \"recv_buffer_size\": 1048576,
-              \"number_worker_threads\": 16,
-              \"use_null_delimiter\": true,
-              \"max_message_size\": 2097152,
-              \"override_source\": null,
-              \"charset_name\": \"UTF-8\",
-              \"decompress_size_limit\": 8388608
-              },
-              \"global\": true
-              }"
-          }
-
-          # Function to create a user in Graylog
-          create_user() {
-              echo "Creating user creation script called"
-              curl -X POST http://graylog:9000/api/users \
-              -H 'Content-Type: application/json' \
-              -H 'X-Requested-By: cli' \
-              -H 'Authorization: Basic YWRtaW46YWRtaW4=' \
-              -d '{
-              "username": "newuser1",
-              "password": "newpassword",
-              "email": "user@example.com",
-              "first_name": "New",
-              "last_name": "User",
-              "roles":["Admin"],
-              "permissions": ["*"]
-              }'
-          }
-
-          # Function to continuously run a background process
-          keep_container_running() {
-              echo "Keeping container running..."
-              tail -f /dev/null
-          }
-
-          # Execute the functions
-          # check_input
-          create_input
-          # create_user
-          keep_container_running
-          EOF
-
-          # Make the script executable
-          chmod +x graylog.sh
-
-          echo "graylog.sh has been created and is now executable."
-
-          # Initialize Docker Swarm
-          sudo docker swarm init
-
-          # Change docker socket permissions
-          sudo chmod 666 /var/run/docker.sock
-
-          # Deploy the Stack Using Docker Swarm
-          sudo docker stack deploy -c docker-compose.yml private_gpt_stack
-          #sudo docker-compose up -d
-
-  # Create an Application Load Balancer (ALB) in the public subnet
+              # mongo for graylog
+              mongo:
+                container_name: mongo_graylog
+                image: mongo:5.0.7
+                volumes:
+                  - mongo_data:/data/db
+
+              # Elasticsearch for Graylog
+              elasticsearch:
+                container_name: elasticsearch
+                image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2
+                environment:
+                  - http.host=0.0.0.0
+                  - transport.host=localhost
+                  - network.host=0.0.0.0
+                  - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+                ulimits:
+                  memlock:
+                    soft: -1
+                    hard: -1
+                volumes:
+                  - es_data:/usr/share/elasticsearch/data
+
+              # Graylog
+              graylog:
+                container_name: graylog
+                image: graylog/graylog:5.2
+                environment:
+                  - GRAYLOG_ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+                  - GRAYLOG_PASSWORD_SECRET=somepasswordpepper  # Ensure this is at least 16 characters
+                  - GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918  # Admin password SHA-2 hash
+                depends_on:
+                  - mongo
+                  - elasticsearch
+                ports:
+                  - "9000:9000"  # Graylog web interface
+                volumes:
+                  - ./graylog.sh:/home/graylog.sh
+                  - graylog_data:/usr/share/graylog/data
+                entrypoint: ["/bin/sh", "-c", "/docker-entrypoint.sh  &  /home/graylog.sh"]
+
+            volumes:
+              mongo_data:  # Define the volume used by MongoDB for persisting data
+              graylog.sh:
+              graylog_data:
+              es_data:
+              mongodb_data:
+
+            networks:
+              default:  # Explicitly defining the default network is not necessary unless you're customizing it
+            EOF
+
+            echo "docker-compose.yml file created successfully!"
+
+            # Directly create and configure the Docker daemon.json file with the DNS settings
+            sudo mkdir -p /etc/docker
+
+            # Define the DNS configuration
+            cat <<EOL | sudo tee /etc/docker/daemon.json > /dev/null
+            {
+              "dns": ["8.8.8.8", "8.8.4.4"]
+            }
+            EOL
+
+            # Restart the Docker service to apply changes
+            echo "Restarting Docker service..."
+            sudo systemctl restart docker
+
+            # Verify the update
+            if sudo systemctl is-active --quiet docker; then
+                echo "Docker service restarted successfully."
+                echo "Updated Docker configuration:"
+                cat /etc/docker/daemon.json
+            else
+                echo "Failed to restart Docker service. Please check the configuration and try again."
+            fi
+
+            # Create the combined ECR pull and credential clearing script
+            cat <<'EOF' > /home/ubuntu/redeploy_stack.sh
+
+            # Define variables
+            ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"
+            ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"
+            ECR_ROLE_EXTERNAL_ID="external-id-12345"
+            Region="us-east-1"
+
+            Aws_Account_ID="637423168201"
+            LLM_Guard_ECR_Repo="llm_guard_repo"
+            LLM_Guard_UI_Image_Tag="ui"
+            LLM_Guard_Backend_Image_Tag="backend"
+            LLM_Guard_Backend_Image_URI="$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_Backend_Image_Tag"
+            LLM_Guard_UI_Image_URI="$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com/$LLM_Guard_ECR_Repo:$LLM_Guard_UI_Image_Tag"
+
+            # Function to assume ECR role and set temporary credentials
+            assume_ecr_role() {
+                echo "Assuming ECR role: $ECR_ROLE_ARN with ExternalId: $ECR_ROLE_EXTERNAL_ID"
+                ASSUME_ROLE_OUTPUT=$(aws sts assume-role --role-arn "$ECR_ROLE_ARN" --role-session-name "$ECR_ROLE_SESSION_NAME" --external-id "$ECR_ROLE_EXTERNAL_ID" --region "$Region")
+
+                if [ $? -ne 0 ]; then
+                    echo "Error assuming ECR role. Exiting."
+                    exit 1
+                fi
+
+                export AWS_ACCESS_KEY_ID=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.AccessKeyId')
+                export AWS_SECRET_ACCESS_KEY=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SecretAccessKey')
+                export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
+                echo "Temporary credentials for ECR set for this session."
+            }
+
+            # Function to authenticate and pull Docker images
+            pull_ecr_images() {
+                echo "Authenticating with ECR..."
+                aws ecr get-login-password --region "$Region" | sudo docker login --username AWS --password-stdin "$Aws_Account_ID.dkr.ecr.$Region.amazonaws.com"
+
+                echo "Pulling LLM Guard Backend image..."
+                sudo docker pull "$LLM_Guard_Backend_Image_URI"
+
+                echo "Pulling LLM Guard UI image..."
+                sudo docker pull "$LLM_Guard_UI_Image_URI"
+            }
+
+            # Function to clear temporary credentials
+            clear_ecr_credentials() {
+                unset AWS_ACCESS_KEY_ID
+                unset AWS_SECRET_ACCESS_KEY
+                unset AWS_SESSION_TOKEN
+                echo "Temporary credentials cleared."
+            }
+
+            # Main script execution
+            assume_ecr_role
+            pull_ecr_images
+            clear_ecr_credentials
+
+            echo "ECR images pulled successfully and credentials cleared."
+
+            # Redeploy portal stack
+            sudo docker stack deploy --resolve-image always -c /home/ubuntu/docker-compose.yml private_gpt_stack
+
+            echo "Portal stack redeployed with the latest images"
+            EOF
+
+            # Make the script executable
+            chmod +x /home/ubuntu/redeploy_stack.sh
+
+            # Create the graylog.sh file using a here document
+            cat << 'EOF' > graylog.sh
+            #!/bin/bash
+
+            echo "*******************************************************"
+            echo "#####################################################################"
+            echo "Waiting for 40 seconds..."
+            sleep 30
+
+            echo "Execution resumed"
+            INPUT_TITLE="My GELF TCP"
+
+            # Function to check if input exists in Graylog
+            check_input(){
+                echo "Checking input script called"
+                curl -H "Authorization: Basic YWRtaW46YWRtaW4=" http://graylog:9000/api/system/inputs | jq --arg title "$INPUT_TITLE" '.inputs[] | select(.title == $title)'
+            }
+
+            # Function to create an input in Graylog
+            create_input() {
+                echo "Creating input script called"
+                curl --location 'http://graylog:9000/api/system/inputs' \
+                --header 'X-Requested-By: cli' \
+                --header 'Content-Type: application/json' \
+                --header 'Authorization: Basic YWRtaW46YWRtaW4=' \
+                --data "{
+                \"title\": \"$INPUT_TITLE\",
+                \"type\": \"org.graylog2.inputs.gelf.tcp.GELFTCPInput\",
+                \"configuration\": {
+                \"bind_address\": \"0.0.0.0\",
+                \"port\": 12201,
+                \"recv_buffer_size\": 1048576,
+                \"number_worker_threads\": 16,
+                \"use_null_delimiter\": true,
+                \"max_message_size\": 2097152,
+                \"override_source\": null,
+                \"charset_name\": \"UTF-8\",
+                \"decompress_size_limit\": 8388608
+                },
+                \"global\": true
+                }"
+            }
+
+            # Function to create a user in Graylog
+            create_user() {
+                echo "Creating user creation script called"
+                curl -X POST http://graylog:9000/api/users \
+                -H 'Content-Type: application/json' \
+                -H 'X-Requested-By: cli' \
+                -H 'Authorization: Basic YWRtaW46YWRtaW4=' \
+                -d '{
+                "username": "newuser1",
+                "password": "newpassword",
+                "email": "user@example.com",
+                "first_name": "New",
+                "last_name": "User",
+                "roles":["Admin"],
+                "permissions": ["*"]
+                }'
+            }
+
+            # Function to continuously run a background process
+            keep_container_running() {
+                echo "Keeping container running..."
+                tail -f /dev/null
+            }
+
+            # Execute the functions
+            # check_input
+            create_input
+            # create_user
+            keep_container_running
+            EOF
+
+            # Make the script executable
+            chmod +x graylog.sh
+
+            echo "graylog.sh has been created and is now executable."
+
+            # Initialize Docker Swarm
+            sudo docker swarm init
+
+            # Change docker socket permissions
+            sudo chmod 666 /var/run/docker.sock
+
+            # Deploy the Stack Using Docker Swarm
+            sudo docker stack deploy -c docker-compose.yml private_gpt_stack
+            #sudo docker-compose up -d
+
+            echo "UserData script executed!"
+
+  # Auto Scaling Group
+  AutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      AutoScalingGroupName: 'LLMGuardAutoScalingGroup'  # Define the name of the Auto Scaling Group
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 4
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref TargetGroupUI        # Associate the UI Target Group
+        - !Ref TargetGroupDocs      # Associate the Docs Target Group
+        - !Ref TargetGroupGraylog   # Associate the Graylog Target Group
+        - !Ref TargetGroupGraylog9000   # Associate the Graylog Target Group
+      Tags:
+        - Key: Name
+          Value: 'LLM_Guard_Instance'
+          PropagateAtLaunch: true
+
+  # Setup Automatic scaling
+  ScaleOutPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      AdjustmentType: "ChangeInCapacity"
+      ScalingAdjustment: 1
+      Cooldown: "300"
+
+  ScaleInPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      AdjustmentType: "ChangeInCapacity"
+      ScalingAdjustment: -1
+      Cooldown: "300"
+
+  CPUHighAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: "Alarm to scale out when CPU utilization is high"
+      Namespace: "AWS/EC2"
+      MetricName: "CPUUtilization"
+      Dimensions:
+        - Name: "AutoScalingGroupName"
+          Value: !Ref AutoScalingGroup
+      Statistic: "Average"
+      Period: "300"
+      EvaluationPeriods: "2"
+      Threshold: "75"
+      ComparisonOperator: "GreaterThanThreshold"
+      AlarmActions:
+        - !Ref ScaleOutPolicy
+
+  CPULowAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: "Alarm to scale in when CPU utilization is low"
+      Namespace: "AWS/EC2"
+      MetricName: "CPUUtilization"
+      Dimensions:
+        - Name: "AutoScalingGroupName"
+          Value: !Ref AutoScalingGroup
+      Statistic: "Average"
+      Period: "300"
+      EvaluationPeriods: "2"
+      Threshold: "30"
+      ComparisonOperator: "LessThanThreshold"
+      AlarmActions:
+        - !Ref ScaleInPolicy
+
+  # ALB
   ALB:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
-      Name: 'LLMGuard-ALB'
+      Name: 'LLMGuardALB'  # Assign a name to the ALB
       Subnets:
         - Ref: PublicSubnet1
         - Ref: PublicSubnet2
       SecurityGroups:
-        - !Ref LLMGuardSecurityGroup  # Use the same security group as EC2
+        - !Ref LLMGuardSecurityGroup
       Scheme: 'internet-facing'
       LoadBalancerAttributes:
         - Key: 'idle_timeout.timeout_seconds'
           Value: '60'
       Tags:
         - Key: Name
-          Value: 'LLMGuard-ALB'
-
-
+          Value: 'LLM_Guard_ALB'
 
   # Create Target Groups for different services
   TargetGroupUI:
@@ -796,8 +855,6 @@ Resources:
       UnhealthyThresholdCount: 10  # Number of failed health checks required to consider the target unhealthy
       Matcher:
         HttpCode: '200'  # Expecting HTTP 200 as a success code
-      Targets:
-        - Id: !Ref Instance  # Register EC2 instance as a target
 
   TargetGroupDocs:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
@@ -816,8 +873,42 @@ Resources:
       UnhealthyThresholdCount: 10  # Number of failed health checks required to consider the target unhealthy
       Matcher:
         HttpCode: '200'
-      Targets:
-        - Id: !Ref Instance  # Register EC2 instance as a target
+
+  # Create a target group for the graylog service in your CloudFormation template:
+  TargetGroupGraylog:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: 'LLM-Guard-TargetGroupGraylog'
+      Port: 80
+      Protocol: 'HTTP'
+      VpcId: !Ref VPC
+      TargetType: 'instance'
+      HealthCheckPath: '/graylog'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 120
+      HealthCheckIntervalSeconds: 300
+      HealthyThresholdCount: 10
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: '200-399'
+
+  TargetGroupGraylog9000:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: 'LLM-Guard-TargetGroupGraylog9000'
+      Port: 9000
+      Protocol: 'HTTP'
+      VpcId: !Ref VPC
+      TargetType: 'instance'
+      HealthCheckPath: '/'
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckTimeoutSeconds: 120
+      HealthCheckIntervalSeconds: 300
+      HealthyThresholdCount: 10
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: '200-399'
+
 
   # Create Listener and rules for different paths
   # ALBListener:
@@ -884,10 +975,32 @@ Resources:
             - '/openapi.json'
       Priority: 3
 
+  # Add a listener rule to forward /graylog traffic to the Graylog target group:
+  ALBListenerRuleGraylog:
+    Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
+    Properties:
+      ListenerArn: !Ref ALBListener
+      Actions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref TargetGroupGraylog
+      Conditions:
+        - Field: 'path-pattern'
+          Values:
+            - '/graylog*'
+      Priority: 4
+
+  ALBListener9000:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref TargetGroupGraylog9000  # Forward to Graylog Target Group
+      LoadBalancerArn: !Ref ALB
+      Port: 9000
+      Protocol: 'HTTP'
+
+
 Outputs:
-  InstancePrivateIP:
-    Description: "Private IP Address of the EC2 Instance"
-    Value: !GetAtt Instance.PrivateIp
   ALBDNSName:
     Description: "ALB DNS Name"
     Value: !GetAtt ALB.DNSName
