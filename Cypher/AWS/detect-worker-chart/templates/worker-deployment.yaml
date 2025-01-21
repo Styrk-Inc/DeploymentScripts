@@ -58,7 +58,7 @@ spec:
             - name: BACKEND_URI
               value: redis://{{ .Values.env.DETECT_RABBITMQ_IP }}:6379/0
             - name: MONGODB_SVC_NAME
-              value: mongodb://admin:admin@{{ .Values.env.MONGODB_SVC_NAME }}/sensitive_information
+              value: mongodb://admin:{{ .Values.env.mongodbPassword }}@{{ .Values.env.MONGODB_SVC_NAME }}/sensitive_information
             - name: REDIS_CACHE_URI
               value: redis://{{ .Values.env.REDIS_CACHE_URI }}:6379/0
           envFrom:

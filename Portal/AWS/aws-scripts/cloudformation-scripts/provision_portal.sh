@@ -23,6 +23,30 @@ sed -i "s|NEW_USERNAME: \".*\"|NEW_USERNAME: \"${COGNITO_USER_MAIL_ID}\"|" "$tar
 # Print a message indicating completion
 echo "Replacements completed successfully in $target_file."
 
+# Update MongoDb password
+# Step 1: Generate a dynamic password each time the script runs
+mongodb_password=$(openssl rand -base64 16)
+
+# Define the path to the configuration file where the MongoDB password is stored
+config_file_path="./portal_cf.yaml"
+
+# Ensure that the path is correct and the file exists
+echo "Checking if the config file exists: $config_file_path"
+if [ -f "$config_file_path" ]; then
+  echo "Config file exists!"
+else
+  echo "Config file not found. Please check the path."
+  exit 1
+fi
+
+# Step 2: Update MongoDB password in the config file (specific to the private GPT container environment variables)
+echo "Updating MongoDB password in config file..."
+sed -i "s|mongo_password: .*|mongo_password: $mongodb_password|g" "$config_file_path"
+
+# Step 3: Optionally print the new password for verification
+echo "Generated MongoDB Password: $mongodb_password"
+
+
 # Creating Portal Instance
 # Create stack
 echo "Creating stack $PORTAL_STACK_NAME in AWS CloudFormation..."

@@ -59,6 +59,10 @@ sed -i "s|namespace = .*|namespace = \"$namespace\"|" "$python_script_path"
 
 echo "Python script updated with values from user-config.sh."
 
+# Generate and Update MongoDb password for the k8s manifests
+chmod +x generate-mongodb-password.sh
+./generate-mongodb-password.sh
+
 #************************************************************#
 #Deploying the Application
 #************************************************************#
@@ -864,4 +868,10 @@ helm install detect-worker detect-worker-chart/
 # kubectl rollout restart deployment detect-fastapi --kubeconfig master-kubeconfig.yaml 
 # echo "detect-fastapi deployment restarted"
 # echo "Setup completed!"
+# echo "Deployment and configuration completed."
+
+# Get the ALB DNS of the k8s services
+chmod +x fetch-ip-k8s-services.sh
+./fetch-ip-k8s-services.sh
+
 echo "Deployment and configuration completed."
