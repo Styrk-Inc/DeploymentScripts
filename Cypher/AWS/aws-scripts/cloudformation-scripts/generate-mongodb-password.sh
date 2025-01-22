@@ -18,8 +18,10 @@ fi
 # Proceed with replacing values if file exists
 # Step 2: Replace the old rootPassword and password with the newly generated password
 echo "Replacing rootPassword and password with the new MongoDB password..."
-sed -i "s|rootPassword: .*|rootPassword: $mongodb_password|g" "$detect_master_chart_values_path"
-sed -i "s|password: .*|password: $mongodb_password|g" "$detect_master_chart_values_path"
+# sed -i "s|rootPassword: .*|rootPassword: $mongodb_password|g" "$detect_master_chart_values_path"
+# sed -i "s|password: .*|password: $mongodb_password|g" "$detect_master_chart_values_path"
+sed -i "s|rootPassword: .*|rootPassword: \"$mongodb_password\"|g" "$detect_master_chart_values_path"
+sed -i "s|password: .*|password: \"$mongodb_password\"|g" "$detect_master_chart_values_path"
 
 # Master deployment file update MongoDB password
 detect_master_chart_deployment_path="../../detect-master-chart/templates/deployment.yaml"
@@ -52,7 +54,8 @@ fi
 
 # Update MongoDB password in the worker values.yaml file
 echo "Updating MongoDB password in worker values.yaml..."
-sed -i "s|mongodbPassword: .*|mongodbPassword: $mongodb_password|g" "$detect_worker_chart_values_path"
+# sed -i "s|mongodbPassword: .*|mongodbPassword: $mongodb_password|g" "$detect_worker_chart_values_path"
+sed -i "s|mongodbPassword: .*|mongodbPassword: \"$mongodb_password\"|g" "$detect_worker_chart_values_path"
 
 # Worker deployment file update MongoDB password
 detect_worker_chart_deployment_path="../../detect-worker-chart/templates/worker-deployment.yaml"
