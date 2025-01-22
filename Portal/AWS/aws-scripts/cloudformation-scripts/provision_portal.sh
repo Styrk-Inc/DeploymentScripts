@@ -41,9 +41,11 @@ fi
 
 # Step 2: Update MongoDB password in the config file (specific to the private GPT container environment variables)
 echo "Updating MongoDB password in config file..."
+# Update in Env of Portal Backend
 #sed -i "s|mongo_password: .*|mongo_password: $mongodb_password|g" "$config_file_path"
 sed -i "s|mongo_password: .*|mongo_password: \"$mongodb_password\"|g" "$config_file_path"
-
+# Update in Compose file
+sed -i "s|MONGO_INITDB_ROOT_PASSWORD: .*|MONGO_INITDB_ROOT_PASSWORD: \"$mongodb_password\"|g" "$config_file_path"
 
 # Step 3: Optionally print the new password for verification
 echo "Generated MongoDB Password: $mongodb_password"

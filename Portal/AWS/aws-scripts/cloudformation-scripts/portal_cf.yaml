@@ -504,8 +504,8 @@ Resources:
                 ports:
                   - "27017:27017"
                 environment:
-                  MONGO_INITDB_ROOT_USERNAME: Admin
-                  MONGO_INITDB_ROOT_PASSWORD: Admin@123
+                  MONGO_INITDB_ROOT_USERNAME: "Admin"
+                  MONGO_INITDB_ROOT_PASSWORD: "Admin@123"
               # MongoDB for Graylog
               
               # mongo for graylog
