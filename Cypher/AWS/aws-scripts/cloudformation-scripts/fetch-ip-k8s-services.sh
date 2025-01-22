@@ -19,7 +19,14 @@ SERVICE_PORTS=(
 
 # Iterate over each cluster context
 for CONTEXT in "${CLUSTERS[@]}"; do
-    echo "Switching to context: $CONTEXT"
+    if [[ "$CONTEXT" == "detect-master" ]]; then
+        echo "-------------Master Cluster Service DNS-------------"
+        echo "-------------Master Cluster Service DNS-------------" >> "$OUTPUT_FILE"
+    elif [[ "$CONTEXT" == "detect-worker" ]]; then
+        echo "-------------Worker Cluster Service DNS-------------"
+        echo "-------------Worker Cluster Service DNS-------------" >> "$OUTPUT_FILE"
+    fi
+
     kubectl config use-context "$CONTEXT" || { echo "Failed to switch to context $CONTEXT"; exit 1; }
 
     # Fetch namespace (default is 'default')
@@ -66,6 +73,7 @@ for CONTEXT in "${CLUSTERS[@]}"; do
     done
 
     echo "---------------------------------------------"
+    echo "---------------------------------------------" >> "$OUTPUT_FILE"
 done
 
 echo "All service IPs and ports saved to $OUTPUT_FILE."

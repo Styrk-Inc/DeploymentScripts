@@ -25,7 +25,8 @@ echo "Replacements completed successfully in $target_file."
 
 # Update MongoDb password
 # Step 1: Generate a dynamic password each time the script runs
-mongodb_password=$(openssl rand -base64 16)
+# mongodb_password=$(openssl rand -base64 16)
+mongodb_password=$(openssl rand -hex 8)
 
 # Define the path to the configuration file where the MongoDB password is stored
 config_file_path="./portal_cf.yaml"

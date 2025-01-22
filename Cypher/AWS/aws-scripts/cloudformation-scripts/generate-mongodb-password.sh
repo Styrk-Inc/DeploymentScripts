@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Step 1: Generate a dynamic password each time the script runs
-mongodb_password=$(openssl rand -base64 16)
+#mongodb_password=$(openssl rand -base64 16)
+mongodb_password=$(openssl rand -hex 8)
 
 # Define the path to the master values.yaml file
 detect_master_chart_values_path="../../detect-master-chart/values.yaml"

@@ -868,10 +868,8 @@ helm install detect-worker detect-worker-chart/
 # kubectl rollout restart deployment detect-fastapi --kubeconfig master-kubeconfig.yaml 
 # echo "detect-fastapi deployment restarted"
 # echo "Setup completed!"
-# echo "Deployment and configuration completed."
-
+echo "Deployment and configuration completed."
+sleep 60s
 # Get the ALB DNS of the k8s services
 chmod +x fetch-ip-k8s-services.sh
 ./fetch-ip-k8s-services.sh
-
-echo "Deployment and configuration completed."
