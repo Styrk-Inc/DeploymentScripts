@@ -59,6 +59,10 @@ sed -i "s|namespace = .*|namespace = \"$namespace\"|" "$python_script_path"
 
 echo "Python script updated with values from user-config.sh."
 
+# Generate and Update MongoDb password for the k8s manifests
+chmod +x generate-mongodb-password.sh
+./generate-mongodb-password.sh
+
 #************************************************************#
 #Deploying the Application
 #************************************************************#
@@ -865,3 +869,9 @@ helm install detect-worker detect-worker-chart/
 # echo "detect-fastapi deployment restarted"
 # echo "Setup completed!"
 echo "Deployment and configuration completed."
+sleep 60s
+# Get the ALB DNS of the k8s services
+pwd=$(pwd)
+echo "current workdir is $pwd"
+chmod +x ./aws-scripts/cloudformation-scripts/fetch-ip-k8s-services.sh
+./aws-scripts/cloudformation-scripts/fetch-ip-k8s-services.sh

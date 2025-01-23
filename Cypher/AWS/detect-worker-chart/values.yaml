@@ -9,6 +9,7 @@ imagePullPolicy: Always
 env:
  # DETECT_MASTER_DNS: "18.119.44.4"
   MONGODB_SVC_NAME: "52.5.110.157"
+  mongodbPassword: "admin"  # Initially set to "admin", will be updated dynamically
   DETECT_RABBITMQ_IP: "34.193.213.132"
   NUM_WORKERS: "4"
   NUM_WORKERS_DEFAULT: "3"
