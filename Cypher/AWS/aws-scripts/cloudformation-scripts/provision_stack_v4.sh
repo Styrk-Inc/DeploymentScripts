@@ -871,5 +871,7 @@ helm install detect-worker detect-worker-chart/
 echo "Deployment and configuration completed."
 sleep 60s
 # Get the ALB DNS of the k8s services
-chmod +x fetch-ip-k8s-services.sh
-./fetch-ip-k8s-services.sh
+pwd=$(pwd)
+echo "current workdir is $pwd"
+chmod +x ./aws-scripts/cloudformation-scripts/fetch-ip-k8s-services.sh
+./aws-scripts/cloudformation-scripts/fetch-ip-k8s-services.sh

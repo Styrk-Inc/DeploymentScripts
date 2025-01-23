@@ -1,8 +1,25 @@
 #!/bin/bash
 
-# Step 1: Generate a dynamic password each time the script runs
-#mongodb_password=$(openssl rand -base64 16)
-mongodb_password=$(openssl rand -hex 8)
+# # Step 1: Generate a dynamic password each time the script runs
+# #mongodb_password=$(openssl rand -base64 16)
+# mongodb_password=$(openssl rand -hex 8)
+
+# Define the path where the MongoDB password will be saved
+password_file="./mongodb_password.txt"
+
+# Check if the password file exists
+if [ -f "$password_file" ]; then
+  echo "MongoDB password already exists. Using the stored password."
+  mongodb_password=$(cat "$password_file")
+else
+  # Step 1: Generate a dynamic password if it doesn't exist
+  echo "Generating a new MongoDB password..."
+  mongodb_password=$(openssl rand -hex 8)
+
+  # Save the generated password to the file
+  echo "$mongodb_password" > "$password_file"
+  echo "MongoDB password has been saved to $password_file"
+fi
 
 # Define the path to the master values.yaml file
 detect_master_chart_values_path="../../detect-master-chart/values.yaml"
