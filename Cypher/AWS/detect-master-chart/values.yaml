@@ -114,6 +114,9 @@ mongodb:
     enabled: true
     #existingClaim: datadir-aitrism1-mongodb-0
     storageClass: ebs-csi-sc
+    annotations:
+      ebs.csi.aws.com/tags: |
+        Environment=Production,Owner=Styrk,Application=MongoDB
   persistentVolumeClaimRetentionPolicy:
     ## @param persistentVolumeClaimRetentionPolicy.enabled Enable Persistent volume retention policy for MongoDB(&reg;) Statefulset
     ##
