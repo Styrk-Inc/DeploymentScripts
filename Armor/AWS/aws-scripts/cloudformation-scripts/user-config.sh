@@ -25,10 +25,33 @@ WorkerInstanceType="g5.4xlarge"
 WorkerInstanceAMIType="AL2_x86_64_GPU"  #For CPU Machine change this to "AL2_x86_64"
 Worker_KMS_KEY_ARN="arn:aws:kms:us-east-1:12345678:key/34bc7fb0-8509-41fc-8673-34bc7fb0"
 
+#Cognito Parameters
+COGNITO_CLIENT_ID="pass-cognito-client-id"          # Update Cognito Client ID
+COGNITO_USER_POOL_ID="pass-cognito-user-pool-id"    # Update Cognito User Pool ID
+COGNITO_REGION="us-east-1"                          # Update Cognito Region
+COGNITO_USER_MAIL_ID="user@domain.com"              # Provide Mail ID of the Cognito User
+
+#Secret Manager Parameters.
+secret_name="Defend-Secret-infra"                   # Secret Name
+region_name="us-east-1"                             # AWS Region for Secrets Manager
+source_account_id="637423168201"                    # AWS Account ID
+role_name="Defend_Secret_Role"                      # Role Name for Secret Access
+
+# Cross-account role details
+ROLE_ARN="arn:aws:iam::123456789012:role/CrossAccountRoleName"
+SESSION_NAME="NewSession"
+EXTERNAL_ID="external-id-12345"
+REGION="us-east-1"
 
 # ===============================
 # Leave These Fields Unchanged (Do Not Edit)
 # ===============================
+
+#Secret Manager Parameters.
+AWS_REGION="us-east-1"
+SECRET_NAME="Defend-Secret-infra"
+K8S_SECRET_NAME="aitrism-aws"
+K8S_NAMESPACE="default"
 
 # Variables for Master
 MASTER_TEMPLATE_BODY="file://eks-master-infra.yaml"
