@@ -95,7 +95,7 @@ echo "Logging in to AWS ECR..."
 aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID_MASTER.dkr.ecr.$MASTER_REGION.amazonaws.com
 
 # python3 secret-creation.py
-python3 aws-scripts/secret-creation.py
+python3 aws-scripts/secret-creation-cross-account.py
 
 #############################################
 # Restore assumed credentials (optional)
@@ -703,7 +703,7 @@ aws ecr get-login-password --region $MASTER_REGION | docker login --username AWS
 #kubectl create configmap rabbitmq-advanced-config --from-file=conf/advanced.config
 #echo "Create aitrism-aws Secret to get AWS Secret Manager Values"
 # python3 secret-creation.py
-python3 aws-scripts/secret-creation.py
+python3 aws-scripts/secret-creation-cross-account.py
 
 #############################################
 # Restore assumed credentials (optional)

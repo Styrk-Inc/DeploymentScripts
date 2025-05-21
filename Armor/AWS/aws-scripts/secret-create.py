@@ -1,66 +1,173 @@
+from kubernetes import client, config
 import boto3
-import os
-import subprocess
+from botocore.exceptions import ClientError
 import json
+import base64
 
-# === Configurable via environment variables ===
-REGION = os.getenv("AWS_REGION", "us-east-1")
-SECRET_NAME = os.getenv("SECRET_NAME", "Defend-Secret-infra")
-K8S_SECRET_NAME = os.getenv("K8S_SECRET_NAME", "aitrism-aws")
-K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
-
-# # === Assumed credentials must be set in env by shell before this script is run ===
-# ASSUMED_ENV_VARS = ["ASSUMED_AWS_ACCESS_KEY_ID", "ASSUMED_AWS_SECRET_ACCESS_KEY", "ASSUMED_AWS_SESSION_TOKEN"]
-
-# def validate_assumed_credentials():
-#     for var in ASSUMED_ENV_VARS:
-#         if not os.getenv(var):
-#             raise EnvironmentError(f"❌ Missing required environment variable: {var}")
-
-def get_secret_from_aws(secret_name: str) -> dict:
-    """Fetch secret from AWS Secrets Manager using boto3."""
-    client = boto3.client("secretsmanager", region_name=REGION)
-    response = client.get_secret_value(SecretId=secret_name)
-    secret_string = response["SecretString"]
-    return json.loads(secret_string)
-
-def create_k8s_secret(secret_data: dict):
-    """Use kubectl to create a Kubernetes secret using assumed role credentials."""
-    # Build command with each key as --from-literal
-    cmd = [
-        "kubectl", "create", "secret", "generic", K8S_SECRET_NAME,
-        "--namespace", K8S_NAMESPACE,
-        "--dry-run=client", "-o", "yaml"
-    ]
-
-    for key, value in secret_data.items():
-        cmd.extend(["--from-literal", f"{key}={value}"])
-
-    # Generate YAML
-    print("🔧 Generating Kubernetes secret manifest...")
-    secret_yaml = subprocess.check_output(cmd)
-
-    # Save YAML to a file
-    with open("secret.yaml", "wb") as f:
-        f.write(secret_yaml)
-
-    print("🔁 Switching to assumed role credentials for kubectl...")
-    # Switch to assumed creds (must be exported already by shell)
-    assumed_env = os.environ.copy()
-    assumed_env["AWS_ACCESS_KEY_ID"] = os.environ["ASSUMED_AWS_ACCESS_KEY_ID"]
-    assumed_env["AWS_SECRET_ACCESS_KEY"] = os.environ["ASSUMED_AWS_SECRET_ACCESS_KEY"]
-    assumed_env["AWS_SESSION_TOKEN"] = os.environ["ASSUMED_AWS_SESSION_TOKEN"]
-
-    print("🚀 Applying secret to Kubernetes...")
-    subprocess.run(["kubectl", "apply", "-f", "secret.yaml"], check=True, env=assumed_env)
-
-
-if __name__ == "__main__":
+def get_secret_value(secret_name, region_name, source_account_id, role_name):
+    sts_client = boto3.client('sts')
+    role_arn = f"arn:aws:iam::{source_account_id}:role/{role_name}"
     try:
-        print(f"Getting secret value for {SECRET_NAME} in region {REGION}")
-        secret = get_secret_from_aws(SECRET_NAME)
-        print("✅ Secret fetched from AWS.")
-        create_k8s_secret(secret)
-        print("✅ Kubernetes secret created successfully.")
-    except Exception as e:
-        print(f"❌ Error occurred: {e}")
+        assumed_role = sts_client.assume_role(
+            RoleArn=role_arn,
+            RoleSessionName="AssumeRoleSession",
+        )
+    except ClientError as e:
+        print("Error assuming role:", e)
+        return None
+
+    session = boto3.Session(
+        aws_access_key_id=assumed_role['Credentials']['AccessKeyId'],
+        aws_secret_access_key=assumed_role['Credentials']['SecretAccessKey'],
+        aws_session_token=assumed_role['Credentials']['SessionToken'],
+    )
+    client = session.client(service_name='secretsmanager', region_name=region_name)
+
+    try:
+        response = client.get_secret_value(SecretId=secret_name)
+        if 'SecretString' in response:
+            secret_string = response['SecretString']
+            secret_json = json.loads(secret_string)
+            return {key: value.encode("utf-8") for key, value in secret_json.items()}
+        else:
+            print("Secret binary is not supported.")
+            return None
+    except ClientError as e:
+        print("Error occurred:", e)
+        return None
+
+# Usage
+secret_name = "Defend-Secret-infra"
+region_name = "us-east-1"
+source_account_id = "637423168201"
+role_name = "Defend_Secret_Role"
+k8s_secret_name = "aitrism-aws"
+namespace = "default"
+
+print("Getting secret value for", secret_name, "in region", region_name)
+secret_data = get_secret_value(secret_name, region_name, source_account_id, role_name)
+if secret_data:
+    # Configure Kubernetes client
+    config.load_kube_config()  # Assuming kubeconfig is available
+    v1 = client.CoreV1Api()
+
+    # Delete existing Kubernetes secret if it exists
+    try:
+        v1.delete_namespaced_secret(name=k8s_secret_name, namespace=namespace)
+        print(f"Deleted existing Kubernetes secret '{k8s_secret_name}' in namespace '{namespace}'.")
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            print(f"No existing secret named '{k8s_secret_name}' found in namespace '{namespace}'. Proceeding to create a new one.")
+        else:
+            print(f"Error deleting Kubernetes secret: {e}")
+            raise
+
+    # Create new Kubernetes secret
+    metadata = {"name": k8s_secret_name}
+    data = {key: base64.b64encode(value).decode("utf-8") for key, value in secret_data.items()}
+    body = {"apiVersion": "v1", "kind": "Secret", "metadata": metadata, "data": data}
+    try:
+        resp = v1.create_namespaced_secret(namespace=namespace, body=body)
+        print("Kubernetes secret created successfully in default namespace.")
+    except client.exceptions.ApiException as e:
+        print(f"Error creating Kubernetes secret: {e}")
+else:
+    print("Failed to retrieve secret value.")
+
+
+
+# import boto3
+# from botocore.exceptions import ClientError,NoCredentialsError
+# import subprocess
+# # import json
+# # import base64
+
+# def get_secret_value(secret_name, region_name, source_account_id, role_name):
+#     print("Assuming cross-account role...")
+#     sts_client = boto3.client('sts')
+#     role_arn = f"arn:aws:iam::{source_account_id}:role/{role_name}"
+#     try:
+#         assumed_role = sts_client.assume_role(
+#             RoleArn=role_arn,
+#             RoleSessionName="AssumeRoleSession",
+#             #ExternalId=externalId
+#         )
+#     except NoCredentialsError:
+#         print("No AWS credentials were found. Please set them up.")
+#         return None
+#     print("Retrieving secret value...")
+#     session = boto3.Session(
+#         aws_access_key_id=assumed_role['Credentials']['AccessKeyId'],
+#         aws_secret_access_key=assumed_role['Credentials']['SecretAccessKey'],
+#         aws_session_token=assumed_role['Credentials']['SessionToken'],
+#     )
+#     client = session.client(service_name='secretsmanager', region_name=region_name)
+
+#     try:
+#         response = client.get_secret_value(SecretId=secret_name)
+#         print("Secret value retrieved successfully.")
+#         if 'SecretString' in response:
+#             secret = response['SecretString']
+#             return secret
+#         else:
+#             secret = response['SecretBinary']
+#             return secret
+#     except ClientError as e:
+#         print("Error occurred:", e)
+#         return None
+
+# # Usage
+# secret_name = "Defend-Secret-infra"
+# region_name = "us-east-1"
+# source_account_id = "975757560751"
+# role_name = "Defend_Secret_Role"
+# #RoleArn=f"arn:aws:iam::975757560751:role/Defend_Secret_Role"
+# #ExternalId="test123"
+# print("Getting secret value for", secret_name, "in region", region_name)
+# secret_value = get_secret_value(secret_name, region_name, source_account_id, role_name)
+# if secret_value:
+#     print("Secret Value:", secret_value)
+
+# # # Extract the secret value from the output
+# # secret_value = secret_value_output.decode("utf-8").strip()
+# # print("Retrieved secret value:", secret_value)
+
+# # Define the secret value as a dictionary
+# # KMS_Key_ARN = "arn:aws:kms:us-east-1:975757560751:key/f66e635f-be2f-46a5-b963-d5ff4017dbc7"
+
+# # # Convert the dictionary to a JSON string
+# # plaintext = json.dumps(secret_value)
+
+# # # Encode the plaintext JSON string into bytes
+# # plaintext_bytes = plaintext.encode('utf-8')
+
+# # # Base64 encode the bytes
+# # plaintext_base64 = base64.b64encode(plaintext_bytes).decode('utf-8')
+
+# # # Now, let's encrypt the plaintext using KMS
+# # # Assuming KMS_Key_ARN is already defined
+# # kms_command = f"aws kms encrypt --key-id {KMS_Key_ARN} --plaintext \"{plaintext_base64}\" --query CiphertextBlob --output text"
+# # result = subprocess.run(kms_command, shell=True, capture_output=True, text=True)
+
+# # if result.returncode == 0:
+# #     encrypted_value = result.stdout.strip()
+# #     print("Secret encrypted successfully.")
+# #     # Construct the kubectl command to create the Kubernetes secret
+# #     kubectl_cmd = f"kubectl create secret generic aws-secret-manager --from-literal=secret={encrypted_value}"
+# #     # Run the kubectl command
+# #     subprocess.run(kubectl_cmd, shell=True)
+# #     print("Kubernetes secret created successfully.")
+# # else:
+# #     print("Error encrypting secret:", result.stderr)
+
+
+# # # Create Kubernetes secret with encrypted value
+# # kubectl_cmd = f"kubectl create secret generic aws-secret-manager --from-literal=secret={encrypted_value}"
+# # subprocess.run(kubectl_cmd, shell=True)
+# # print("Kubernetes secret created successfully.")
+
+
+# # Create Kubernetes secret
+# kubectl_cmd = f"kubectl create secret generic aitrism-aws --from-literal=secret={secret_value}"
+# subprocess.run(kubectl_cmd, shell=True)
+# print("Kubernetes secret created successfully.")

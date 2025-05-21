@@ -123,7 +123,7 @@ export AWS_ACCESS_KEY_ID=$ORIGINAL_AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY=$ORIGINAL_AWS_SECRET_ACCESS_KEY
 export AWS_SESSION_TOKEN=$ORIGINAL_AWS_SESSION_TOKEN
 
-python3 aws-scripts/secret-create.py  #Python3 should be installed before this step
+python3 aws-scripts/secret-create-cross-account.py  #Python3 should be installed before this step
 echo "S3 Access Secret Created..."
 
 #############################################
@@ -568,7 +568,7 @@ export AWS_ACCESS_KEY_ID=$ORIGINAL_AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY=$ORIGINAL_AWS_SECRET_ACCESS_KEY
 export AWS_SESSION_TOKEN=$ORIGINAL_AWS_SESSION_TOKEN
 echo "Getting AWS Creds for S3..."
-python3 aws-scripts/secret-create.py  #Python3 should be installed before this step
+python3 aws-scripts/secret-create-cross-account.py #Python3 should be installed before this step
 echo "S3 Access Secret Created..."
 #############################################
 # Restore assumed credentials (optional)
