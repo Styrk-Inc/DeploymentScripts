@@ -36,7 +36,7 @@ else
 fi
 
 # Define the path to the values.yaml file to update Cognito Envs
-values_path="../aitrism-master-chart/values.yaml"
+values_path="../../aitrism-master-chart/values.yaml "
 
 # Step 3: Use sed to replace the values in values.yaml
 sed -i "s|COGNITO_CLIENT_ID: .*|COGNITO_CLIENT_ID: \"$COGNITO_CLIENT_ID\"|" $values_path
