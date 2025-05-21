@@ -60,6 +60,10 @@ echo "Updated values.yaml with the new values from user-config.sh."
 
 # echo "Python script updated with values from user-config.sh."
 
+# # Generate and Update MongoDb password for the k8s manifests
+# chmod +x generate-mongodb-password.sh
+# ./generate-mongodb-password.sh
+
 #************************************************************#
 #Deploying the Application
 #************************************************************#
@@ -806,3 +810,10 @@ kubectl rollout restart deployment detect-fastapi --kubeconfig master-kubeconfig
 echo "detect-fastapi deployment restarted"
 # echo "Setup completed!"
 echo "Deployment and configuration completed."
+
+# sleep 60s
+# # Get the ALB DNS of the k8s services
+# pwd=$(pwd)
+# echo "current workdir is $pwd"
+# chmod +x ./aws-scripts/cloudformation-scripts/fetch-ip-k8s-services.sh
+# ./aws-scripts/cloudformation-scripts/fetch-ip-k8s-services.sh
