@@ -31,12 +31,6 @@ COGNITO_USER_POOL_ID="pass-cognito-user-pool-id"    # Update Cognito User Pool I
 COGNITO_REGION="us-east-1"                          # Update Cognito Region
 COGNITO_USER_MAIL_ID="user@domain.com"              # Provide Mail ID of the Cognito User
 
-#Secret Manager Parameters.
-secret_name="Defend-Secret-infra"                   # Secret Name
-region_name="us-east-1"                             # AWS Region for Secrets Manager
-source_account_id="637423168201"                    # AWS Account ID
-role_name="Defend_Secret_Role"                      # Role Name for Secret Access
-
 # Cross-account role details
 ROLE_ARN="arn:aws:iam::123456789012:role/CrossAccountRoleName"
 SESSION_NAME="NewSession"
@@ -52,6 +46,12 @@ AWS_REGION="us-east-1"
 SECRET_NAME="Defend-Secret-infra"
 K8S_SECRET_NAME="aitrism-aws"
 K8S_NAMESPACE="default"
+
+# #Secret Manager Parameters.
+# secret_name="Defend-Secret-infra"                   # Secret Name
+# region_name="us-east-1"                             # AWS Region for Secrets Manager
+# source_account_id="637423168201"                    # AWS Account ID
+# role_name="Defend_Secret_Role"                      # Role Name for Secret Access
 
 # Variables for Master
 MASTER_TEMPLATE_BODY="file://eks-master-infra.yaml"
