@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+echo "Check current folder files"
+ls
+echo "Current working directory"
+pwd
+
 # Load environment config
 source user-config.sh
 
