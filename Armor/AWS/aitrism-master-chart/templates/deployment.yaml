@@ -86,6 +86,16 @@ spec:
               value: {{ .Values.rabbitmq.env.BROKER_URI }}
             - name: BACKEND_URI
               value: {{ .Values.redis.env.BACKEND_URI }}
+            - name: COGNITO_CLIENT_ID
+              value: "{{ .Values.fastapi.env.COGNITO_CLIENT_ID }}"
+            - name: COGNITO_USER_POOL_ID
+              value: "{{ .Values.fastapi.env.COGNITO_USER_POOL_ID }}"
+            - name: COGNITO_REGION
+              value: "{{ .Values.fastapi.env.COGNITO_REGION }}"
+            - name: NEW_USERNAME
+              value: "{{ .Values.fastapi.env.NEW_USERNAME }}"
+            - name: ADMIN_USER
+              value: "{{ .Values.fastapi.env.ADMIN_USER }}"
           envFrom:
             - secretRef:
                name: aitrism-aws

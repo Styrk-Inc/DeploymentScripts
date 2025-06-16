@@ -38,16 +38,17 @@ COGNITO_USER_POOL_ID="pass-cognito-user-pool-id"    # Update Cognito User Pool I
 COGNITO_REGION="us-east-1"                          # Update Cognito Region
 COGNITO_USER_MAIL_ID="user@domain.com"              # Provide Mail ID of the Cognito User
 
-#Secret Manager Parameters.
-secret_name="Defend-Secret-infra"                   # Secret Name
-region_name="us-east-1"                             # AWS Region for Secrets Manager
-source_account_id="637423168201"                    # AWS Account ID
-role_name="Defend_Secret_Role"                      # Role Name for Secret Access
+# Cross-account role details
+ROLE_ARN="arn:aws:iam::123456789012:role/CrossAccountRoleName"  # Replace <SOURCE_ACCOUNT_ID> and <ROLE_NAME>
+SESSION_NAME="NewSession"                                       # Replace session_name with any desired value (temporary)
+EXTERNAL_ID="external-id-12345"                                 # Replace <ECR_ROLE_EXTERNAL_ID> with the provider's external ID
+REGION="us-east-1"                                              # Replace with the desired AWS Region
 
-# Cross-Account ECR Access Setup
-ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"     # Replace <SOURCE_ACCOUNT_ID> and <ROLE_NAME>
-ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"                    # Replace session_name with any desired value (temporary)
-ECR_ROLE_EXTERNAL_ID="external-id-12345"                        # Replace <ECR_ROLE_EXTERNAL_ID> with the provider's external ID
+
+# # Cross-Account ECR Access Setup
+# ECR_ROLE_ARN="arn:aws:iam::637423168201:role/edna-ecr-role"     # Replace <SOURCE_ACCOUNT_ID> and <ROLE_NAME>
+# ECR_ROLE_SESSION_NAME="ECRAssumeRoleSession"                    # Replace session_name with any desired value (temporary)
+# ECR_ROLE_EXTERNAL_ID="external-id-12345"                        # Replace <ECR_ROLE_EXTERNAL_ID> with the provider's external ID
 
 
 # ===============================
@@ -55,8 +56,17 @@ ECR_ROLE_EXTERNAL_ID="external-id-12345"                        # Replace <ECR_R
 # ===============================
 
 #Secret Manager Parameters.
-k8s_secret_name="aitrism-aws"                       # Kubernetes Secret Name
-namespace="default"                                 # Kubernetes Namespace
+AWS_REGION="us-east-1"
+SECRET_NAME="Defend-Secret-infra"
+K8S_SECRET_NAME="aitrism-aws"
+K8S_NAMESPACE="default"
+
+# #Secret Manager Parameters.
+# secret_name="Defend-Secret-infra"                   # Secret Name
+# region_name="us-east-1"                             # AWS Region for Secrets Manager
+# source_account_id="637423168201"                    # AWS Account ID
+# role_name="Defend_Secret_Role"                      # Role Name for Secret Access
+
 
 # Variables for Master
 AWS_ACCOUNT_ID_MASTER="637423168201"

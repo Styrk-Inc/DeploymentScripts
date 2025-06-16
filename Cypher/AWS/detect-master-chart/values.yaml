@@ -34,7 +34,7 @@ fastapi:
     GRAYLOG_HOST: "graylog"
     GRAYLOG_PORT: "12201"
     APP_TYPE: "fastapi"
- 
+    ADMIN_USER: "user@domain.com"
 celeryWorker:
   image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/edna-detect:worker"
   workingDir: "/app"

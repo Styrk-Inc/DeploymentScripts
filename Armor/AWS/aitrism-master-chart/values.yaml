@@ -25,6 +25,12 @@ fastapi:
   image_web: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:web"
 #  image: "637423168201.dkr.ecr.us-east-1.amazonaws.com/aitrism:web"
   port: 8000
+  env:
+    COGNITO_CLIENT_ID: "pass-cognito-client-id"
+    COGNITO_USER_POOL_ID: "pass-cognito-user-pool-id"
+    COGNITO_REGION: "us-east-1"
+    NEW_USERNAME: "user@domain.com"
+    ADMIN_USER: "user@domain.com"
 
 celeryWorker:
   image_worker: "637423168201.dkr.ecr.us-east-1.amazonaws.com/defend-vardaan:worker"

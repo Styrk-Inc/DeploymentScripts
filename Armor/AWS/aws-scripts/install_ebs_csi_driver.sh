@@ -7,9 +7,9 @@ helm repo update
 
 helm install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
 --namespace kube-system \
---set enableVolumeScheduling=true \
---set enableVolumeResizing=true \
---set enableVolumeSnapshot=true
+# --set enableVolumeScheduling=true \
+# --set enableVolumeResizing=true \
+# --set enableVolumeSnapshot=true
 
 sleep 30
 #erwe
